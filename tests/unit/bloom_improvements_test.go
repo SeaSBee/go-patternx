@@ -31,10 +31,9 @@ func TestBloomFilterStoreContentionFix(t *testing.T) {
 	var wg sync.WaitGroup
 	var storeErrors int64
 	var successCount int64
-	var startTime time.Time
 
 	// Start concurrent store operations
-	startTime = time.Now()
+	startTime := time.Now()
 	for i := 0; i < numGoroutines; i++ {
 		wg.Add(1)
 		go func(id int) {
@@ -376,10 +375,9 @@ func TestBloomFilterStoreMutexIsolation(t *testing.T) {
 
 	var wg sync.WaitGroup
 	var storeErrors int64
-	var startTime time.Time
 
 	// Start concurrent store operations
-	startTime = time.Now()
+	startTime := time.Now()
 	for i := 0; i < numGoroutines; i++ {
 		wg.Add(1)
 		go func(id int) {
