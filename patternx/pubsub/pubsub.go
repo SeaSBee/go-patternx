@@ -85,7 +85,6 @@ type CircuitBreaker struct {
 	state        atomic.Int32 // 0: closed, 1: open, 2: half-open
 	threshold    int64
 	timeout      time.Duration
-	mu           sync.RWMutex
 }
 
 // NewCircuitBreaker creates a new circuit breaker
@@ -165,7 +164,6 @@ type Subscription struct {
 	RetryDelay        time.Duration
 	CircuitBreaker    *CircuitBreaker
 	closed            int32
-	mu                sync.RWMutex
 	metrics           *SubscriptionMetrics
 	workerPool        chan struct{} // Semaphore for concurrency control
 }
@@ -199,7 +197,6 @@ type Publisher struct {
 	store          PubSubStore
 	maxRetries     int
 	retryDelay     time.Duration
-	closed         int32
 	metrics        *PublisherMetrics
 	circuitBreaker *CircuitBreaker
 	workerPool     chan struct{} // Semaphore for concurrency control
@@ -267,7 +264,6 @@ type PubSub struct {
 	store     PubSubStore
 	config    *Config
 	closed    int32
-	mu        sync.RWMutex
 	metrics   *PubSubMetrics
 	ctx       context.Context
 	cancel    context.CancelFunc
@@ -734,7 +730,7 @@ func (ps *PubSub) deliverMessageToSubscriber(ctx context.Context, subscription *
 		// Categorize errors for better metrics
 		if errors.Is(err, ErrCircuitBreakerOpen) {
 			subscription.metrics.CircuitBreakerTrips.Add(1)
-		} else if errors.Is(err, ErrTimeout) || (err != nil && (errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled))) {
+		} else if errors.Is(err, ErrTimeout) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 			// Record timeout errors specifically
 			subscription.metrics.TimeoutErrors.Add(1)
 			logx.Warn("Message handler timeout",
@@ -770,6 +766,8 @@ func (ps *PubSub) deliverMessageToSubscriber(ctx context.Context, subscription *
 func (ps *PubSub) deliverWithRetry(ctx context.Context, subscription *Subscription, message *Message) error {
 	var lastErr error
 	for attempt := 0; attempt <= subscription.MaxRetries; attempt++ {
+		// Set the retry count for this attempt
+		message.RetryCount = attempt
 		if err := ctx.Err(); err != nil {
 			return fmt.Errorf("%w: %v", ErrContextCancelled, err)
 		}
