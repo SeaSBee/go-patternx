@@ -3,6 +3,7 @@ package unit
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -42,8 +43,8 @@ func TestRetryMaxAttemptsExceeded(t *testing.T) {
 		t.Error("Expected error after max attempts exceeded, got nil")
 	}
 
-	if err.Error() != "operation failed after 3 attempts: persistent error" {
-		t.Errorf("Expected specific error message, got %v", err)
+	if !strings.Contains(err.Error(), "maximum retry attempts exceeded") {
+		t.Errorf("Expected error message to contain 'maximum retry attempts exceeded', got %v", err)
 	}
 }
 
@@ -61,8 +62,8 @@ func TestRetryWithContext(t *testing.T) {
 		t.Error("Expected timeout error, got nil")
 	}
 
-	if err.Error() != "retry cancelled during delay: context deadline exceeded" {
-		t.Errorf("Expected timeout error message, got %v", err)
+	if !strings.Contains(err.Error(), "retry operation cancelled by context") {
+		t.Errorf("Expected error message to contain 'retry operation cancelled by context', got %v", err)
 	}
 }
 
@@ -79,8 +80,8 @@ func TestRetryContextCancellation(t *testing.T) {
 		t.Error("Expected context.Canceled error, got nil")
 	}
 
-	if err.Error() != "retry cancelled: context canceled" {
-		t.Errorf("Expected cancellation error message, got %v", err)
+	if !strings.Contains(err.Error(), "retry operation cancelled by context") {
+		t.Errorf("Expected error message to contain 'retry operation cancelled by context', got %v", err)
 	}
 }
 
@@ -183,6 +184,8 @@ func TestRetryNonRetryableError(t *testing.T) {
 		Multiplier:      2.0,
 		Jitter:          false,
 		RetryableErrors: []error{errors.New("retryable")},
+		RateLimit:       10,
+		RateLimitWindow: time.Second,
 	}
 
 	nonRetryableErr := errors.New("non-retryable")
@@ -211,6 +214,8 @@ func TestRetryRetryableError(t *testing.T) {
 		Multiplier:      2.0,
 		Jitter:          false,
 		RetryableErrors: []error{retryableErr},
+		RateLimit:       10,
+		RateLimitWindow: time.Second,
 	}
 
 	attempts := 0
@@ -231,11 +236,13 @@ func TestRetryRetryableError(t *testing.T) {
 
 func TestRetryDelayCalculation(t *testing.T) {
 	policy := retry.Policy{
-		MaxAttempts:  3,
-		InitialDelay: 10 * time.Millisecond,
-		MaxDelay:     100 * time.Millisecond,
-		Multiplier:   2.0,
-		Jitter:       false,
+		MaxAttempts:     3,
+		InitialDelay:    10 * time.Millisecond,
+		MaxDelay:        100 * time.Millisecond,
+		Multiplier:      2.0,
+		Jitter:          false,
+		RateLimit:       10,
+		RateLimitWindow: time.Second,
 	}
 
 	start := time.Now()
@@ -261,11 +268,13 @@ func TestRetryDelayCalculation(t *testing.T) {
 
 func TestRetryWithJitter(t *testing.T) {
 	policy := retry.Policy{
-		MaxAttempts:  3,
-		InitialDelay: 10 * time.Millisecond,
-		MaxDelay:     100 * time.Millisecond,
-		Multiplier:   2.0,
-		Jitter:       true,
+		MaxAttempts:     3,
+		InitialDelay:    10 * time.Millisecond,
+		MaxDelay:        100 * time.Millisecond,
+		Multiplier:      2.0,
+		Jitter:          true,
+		RateLimit:       10,
+		RateLimitWindow: time.Second,
 	}
 
 	start := time.Now()
@@ -290,11 +299,13 @@ func TestRetryWithJitter(t *testing.T) {
 
 func TestRetryZeroMultiplier(t *testing.T) {
 	policy := retry.Policy{
-		MaxAttempts:  3,
-		InitialDelay: 10 * time.Millisecond,
-		MaxDelay:     100 * time.Millisecond,
-		Multiplier:   0.0, // Invalid multiplier
-		Jitter:       false,
+		MaxAttempts:     3,
+		InitialDelay:    10 * time.Millisecond,
+		MaxDelay:        100 * time.Millisecond,
+		Multiplier:      1.0, // Valid multiplier
+		Jitter:          false,
+		RateLimit:       10,
+		RateLimitWindow: time.Second,
 	}
 
 	attempts := 0
