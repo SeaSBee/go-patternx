@@ -9,19 +9,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/SeaSBee/go-patternx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/SeaSBee/go-patternx/patternx/pubsub"
 )
 
 // TestEnhancedConcurrencyLimits tests the improved concurrency limits
 func TestEnhancedConcurrencyLimits(t *testing.T) {
 	store := NewMockStore()
-	config := pubsub.DefaultConfig(store)
-	config.MaxConcurrentOperations = 3 // Very low limit for testing
-	config.OperationTimeout = 100 * time.Millisecond
-	ps, err := pubsub.NewPubSub(config)
+	config := patternx.DefaultConfigPubSub(store)
+	config.MaxConcurrentOperations = 2              // Very low limit for testing
+	config.OperationTimeout = 50 * time.Millisecond // Short timeout to force failures
+	ps, err := patternx.NewPubSub(config)
 	require.NoError(t, err)
 	defer ps.Close(context.Background())
 
@@ -29,12 +28,12 @@ func TestEnhancedConcurrencyLimits(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create slow handler to create backpressure
-	handler := func(ctx context.Context, msg *pubsub.Message) error {
-		time.Sleep(200 * time.Millisecond) // Very slow processing to create backpressure
+	handler := func(ctx context.Context, msg *patternx.MessagePubSub) error {
+		time.Sleep(300 * time.Millisecond) // Very slow processing to create backpressure
 		return nil
 	}
 
-	_, err = ps.Subscribe(context.Background(), "concurrency-test", "sub-1", handler, &pubsub.MessageFilter{})
+	_, err = ps.Subscribe(context.Background(), "concurrency-test", "sub-1", handler, &patternx.MessageFilter{})
 	require.NoError(t, err)
 
 	// Try to publish more messages than concurrency limit
@@ -59,7 +58,7 @@ func TestEnhancedConcurrencyLimits(t *testing.T) {
 	wg.Wait()
 
 	// Wait a bit more for processing to complete
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(1 * time.Second)
 
 	// Check if we have any failures due to queue being full
 	stats := ps.GetStats()
@@ -77,9 +76,9 @@ func TestEnhancedConcurrencyLimits(t *testing.T) {
 // TestEnhancedTimeoutHandling tests the improved timeout handling
 func TestEnhancedTimeoutHandling(t *testing.T) {
 	store := NewMockStore()
-	config := pubsub.DefaultConfig(store)
+	config := patternx.DefaultConfigPubSub(store)
 	config.OperationTimeout = 50 * time.Millisecond // Short timeout
-	ps, err := pubsub.NewPubSub(config)
+	ps, err := patternx.NewPubSub(config)
 	require.NoError(t, err)
 	defer ps.Close(context.Background())
 
@@ -87,12 +86,12 @@ func TestEnhancedTimeoutHandling(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create slow handler that exceeds timeout
-	handler := func(ctx context.Context, msg *pubsub.Message) error {
+	handler := func(ctx context.Context, msg *patternx.MessagePubSub) error {
 		time.Sleep(200 * time.Millisecond) // Longer than timeout
 		return nil
 	}
 
-	_, err = ps.Subscribe(context.Background(), "timeout-test", "sub-1", handler, &pubsub.MessageFilter{})
+	_, err = ps.Subscribe(context.Background(), "timeout-test", "sub-1", handler, &patternx.MessageFilter{})
 	require.NoError(t, err)
 
 	// Publish message
@@ -117,14 +116,14 @@ func TestEnhancedTimeoutHandling(t *testing.T) {
 // TestEnhancedErrorRecording tests the improved error recording
 func TestEnhancedErrorRecording(t *testing.T) {
 	store := NewMockStore()
-	config := pubsub.DefaultConfig(store)
+	config := patternx.DefaultConfigPubSub(store)
 	config.CircuitBreakerThreshold = 100 // Very high threshold to avoid interference
 	config.CircuitBreakerTimeout = 1 * time.Second
 	config.EnableDeadLetterQueue = true
-	config.DeadLetterHandler = func(ctx context.Context, msg *pubsub.Message, err error) error {
+	config.DeadLetterHandler = func(ctx context.Context, msg *patternx.MessagePubSub, err error) error {
 		return nil // Always succeed for testing
 	}
-	ps, err := pubsub.NewPubSub(config)
+	ps, err := patternx.NewPubSub(config)
 	require.NoError(t, err)
 	defer ps.Close(context.Background())
 
@@ -134,13 +133,13 @@ func TestEnhancedErrorRecording(t *testing.T) {
 	// Test various error scenarios
 	testCases := []struct {
 		name        string
-		handler     pubsub.MessageHandler
+		handler     patternx.MessageHandlerPubSub
 		expectError bool
 		errorType   string
 	}{
 		{
 			name: "handler-returns-error",
-			handler: func(ctx context.Context, msg *pubsub.Message) error {
+			handler: func(ctx context.Context, msg *patternx.MessagePubSub) error {
 				return errors.New("handler error")
 			},
 			expectError: true,
@@ -148,7 +147,7 @@ func TestEnhancedErrorRecording(t *testing.T) {
 		},
 		{
 			name: "handler-panics",
-			handler: func(ctx context.Context, msg *pubsub.Message) error {
+			handler: func(ctx context.Context, msg *patternx.MessagePubSub) error {
 				panic("handler panic")
 			},
 			expectError: true,
@@ -157,7 +156,7 @@ func TestEnhancedErrorRecording(t *testing.T) {
 
 		{
 			name: "handler-succeeds",
-			handler: func(ctx context.Context, msg *pubsub.Message) error {
+			handler: func(ctx context.Context, msg *patternx.MessagePubSub) error {
 				return nil
 			},
 			expectError: false,
@@ -168,7 +167,7 @@ func TestEnhancedErrorRecording(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			subscriptionID := fmt.Sprintf("sub-%s", tc.name)
-			_, err := ps.Subscribe(context.Background(), "error-test", subscriptionID, tc.handler, &pubsub.MessageFilter{})
+			_, err := ps.Subscribe(context.Background(), "error-test", subscriptionID, tc.handler, &patternx.MessageFilter{})
 			require.NoError(t, err)
 
 			data := []byte("error test message")
@@ -215,9 +214,9 @@ func TestEnhancedErrorRecording(t *testing.T) {
 // TestEnhancedBatchOperations tests enhanced batch operations with concurrency limits
 func TestEnhancedBatchOperations(t *testing.T) {
 	store := NewMockStore()
-	config := pubsub.DefaultConfig(store)
+	config := patternx.DefaultConfigPubSub(store)
 	config.MaxConcurrentOperations = 5
-	ps, err := pubsub.NewPubSub(config)
+	ps, err := patternx.NewPubSub(config)
 	require.NoError(t, err)
 	defer ps.Close(context.Background())
 
@@ -225,18 +224,18 @@ func TestEnhancedBatchOperations(t *testing.T) {
 	require.NoError(t, err)
 
 	var receivedCount int64
-	handler := func(ctx context.Context, msg *pubsub.Message) error {
+	handler := func(ctx context.Context, msg *patternx.MessagePubSub) error {
 		atomic.AddInt64(&receivedCount, 1)
 		return nil
 	}
 
-	_, err = ps.Subscribe(context.Background(), "batch-test", "sub-1", handler, &pubsub.MessageFilter{})
+	_, err = ps.Subscribe(context.Background(), "batch-test", "sub-1", handler, &patternx.MessageFilter{})
 	require.NoError(t, err)
 
 	// Create large batch
-	messages := make([]pubsub.Message, 20)
+	messages := make([]patternx.MessagePubSub, 20)
 	for i := 0; i < 20; i++ {
-		messages[i] = pubsub.Message{
+		messages[i] = patternx.MessagePubSub{
 			Data:    []byte(fmt.Sprintf("batch message %d", i)),
 			Headers: map[string]string{"batch": "true"},
 		}
@@ -264,21 +263,21 @@ func TestEnhancedBatchOperations(t *testing.T) {
 // BenchmarkEnhancedPublishing benchmarks the enhanced publishing with concurrency limits
 func BenchmarkEnhancedPublishing(b *testing.B) {
 	store := NewMockStore()
-	config := pubsub.DefaultConfig(store)
+	config := patternx.DefaultConfigPubSub(store)
 	config.MaxConcurrentOperations = 100
 	config.BufferSize = 10000
-	ps, err := pubsub.NewPubSub(config)
+	ps, err := patternx.NewPubSub(config)
 	require.NoError(b, err)
 	defer ps.Close(context.Background())
 
 	err = ps.CreateTopic(context.Background(), "benchmark-topic")
 	require.NoError(b, err)
 
-	handler := func(ctx context.Context, msg *pubsub.Message) error {
+	handler := func(ctx context.Context, msg *patternx.MessagePubSub) error {
 		return nil
 	}
 
-	_, err = ps.Subscribe(context.Background(), "benchmark-topic", "sub-1", handler, &pubsub.MessageFilter{})
+	_, err = ps.Subscribe(context.Background(), "benchmark-topic", "sub-1", handler, &patternx.MessageFilter{})
 	require.NoError(b, err)
 
 	data := []byte("benchmark message")

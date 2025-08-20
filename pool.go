@@ -1,4 +1,4 @@
-package pool
+package patternx
 
 import (
 	"context"
@@ -8,47 +8,34 @@ import (
 	"time"
 )
 
-// Error types for better error handling
-var (
-	ErrPoolClosed           = fmt.Errorf("worker pool is closed")
-	ErrInvalidConfig        = fmt.Errorf("invalid configuration")
-	ErrInvalidJob           = fmt.Errorf("invalid job")
-	ErrJobQueueFull         = fmt.Errorf("job queue is full")
-	ErrContextCancelled     = fmt.Errorf("context cancelled")
-	ErrWorkerCreationFailed = fmt.Errorf("failed to create worker")
-	ErrScalingFailed        = fmt.Errorf("scaling operation failed")
-	ErrTimeout              = fmt.Errorf("operation timeout")
-	ErrNoResultsAvailable   = fmt.Errorf("no results available")
-)
-
 // Production constants
 const (
-	MaxWorkersLimit            = 1000
-	MinWorkersLimit            = 1
-	MaxQueueSizeLimit          = 10000
-	MinQueueSizeLimit          = 1
-	MaxIdleTimeoutLimit        = 10 * time.Minute
-	MinIdleTimeoutLimit        = 1 * time.Second
-	MaxScaleUpThresholdLimit   = 100
-	MinScaleUpThresholdLimit   = 1
-	MaxScaleDownThresholdLimit = 50
-	MinScaleDownThresholdLimit = 1
-	MaxScaleUpCooldownLimit    = 1 * time.Minute
-	MinScaleUpCooldownLimit    = 100 * time.Millisecond
-	MaxScaleDownCooldownLimit  = 5 * time.Minute
-	MinScaleDownCooldownLimit  = 1 * time.Second
-	MaxJobTimeoutLimit         = 1 * time.Hour
-	MinJobTimeoutLimit         = 1 * time.Millisecond
-	DefaultJobTimeout          = 30 * time.Second
-	GracefulShutdownTimeout    = 30 * time.Second
-	AutoScaleInterval          = 5 * time.Second
-	MetricsCollectionInterval  = 1 * time.Second
+	MaxWorkersLimitPool            = 1000
+	MinWorkersLimitPool            = 1
+	MaxQueueSizeLimitPool          = 10000
+	MinQueueSizeLimitPool          = 1
+	MaxIdleTimeoutLimitPool        = 10 * time.Minute
+	MinIdleTimeoutLimitPool        = 1 * time.Second
+	MaxScaleUpThresholdLimitPool   = 100
+	MinScaleUpThresholdLimitPool   = 1
+	MaxScaleDownThresholdLimitPool = 50
+	MinScaleDownThresholdLimitPool = 1
+	MaxScaleUpCooldownLimitPool    = 1 * time.Minute
+	MinScaleUpCooldownLimitPool    = 100 * time.Millisecond
+	MaxScaleDownCooldownLimitPool  = 5 * time.Minute
+	MinScaleDownCooldownLimitPool  = 1 * time.Second
+	MaxJobTimeoutLimitPool         = 1 * time.Hour
+	MinJobTimeoutLimitPool         = 1 * time.Millisecond
+	DefaultJobTimeoutPool          = 30 * time.Second
+	GracefulShutdownTimeoutPool    = 30 * time.Second
+	AutoScaleIntervalPool          = 5 * time.Second
+	MetricsCollectionIntervalPool  = 1 * time.Second
 )
 
 // WorkerPool provides a configurable worker pool with backpressure for batch operations
 type WorkerPool struct {
 	// Configuration
-	config Config
+	config ConfigPool
 
 	// Worker management
 	workers    []*Worker
@@ -56,11 +43,11 @@ type WorkerPool struct {
 	mu         sync.RWMutex
 
 	// Job management
-	jobQueue   chan Job
-	jobResults chan JobResult
+	jobQueue   chan JobPool
+	jobResults chan JobResultPool
 
 	// Statistics - all atomic for thread safety
-	stats *PoolStats
+	stats *PoolStatsPool
 
 	// Lifecycle
 	ctx    context.Context
@@ -75,7 +62,7 @@ type WorkerPool struct {
 }
 
 // Config defines worker pool configuration
-type Config struct {
+type ConfigPool struct {
 	// Pool size configuration
 	MinWorkers  int           `json:"min_workers"`
 	MaxWorkers  int           `json:"max_workers"`
@@ -93,8 +80,8 @@ type Config struct {
 }
 
 // DefaultConfig returns a default configuration
-func DefaultConfig() Config {
-	return Config{
+func DefaultConfigPool() ConfigPool {
+	return ConfigPool{
 		MinWorkers:         2,
 		MaxWorkers:         10,
 		QueueSize:          100,
@@ -108,8 +95,8 @@ func DefaultConfig() Config {
 }
 
 // HighPerformanceConfig returns a configuration optimized for high throughput
-func HighPerformanceConfig() Config {
-	return Config{
+func HighPerformanceConfigPool() ConfigPool {
+	return ConfigPool{
 		MinWorkers:         5,
 		MaxWorkers:         50,
 		QueueSize:          1000,
@@ -123,8 +110,8 @@ func HighPerformanceConfig() Config {
 }
 
 // ResourceConstrainedConfig returns a configuration for resource-constrained environments
-func ResourceConstrainedConfig() Config {
-	return Config{
+func ResourceConstrainedConfigPool() ConfigPool {
+	return ConfigPool{
 		MinWorkers:         1,
 		MaxWorkers:         5,
 		QueueSize:          50,
@@ -138,8 +125,8 @@ func ResourceConstrainedConfig() Config {
 }
 
 // EnterpriseConfig returns a configuration for enterprise environments
-func EnterpriseConfig() Config {
-	return Config{
+func EnterpriseConfigPool() ConfigPool {
+	return ConfigPool{
 		MinWorkers:         10,
 		MaxWorkers:         200,
 		QueueSize:          5000,
@@ -152,8 +139,8 @@ func EnterpriseConfig() Config {
 	}
 }
 
-// Job represents a task to be executed by a worker
-type Job struct {
+// JobPool represents a task to be executed by a worker
+type JobPool struct {
 	ID       string                      `json:"id"`
 	Task     func() (interface{}, error) `json:"-"`
 	Priority int                         `json:"priority"`
@@ -162,8 +149,8 @@ type Job struct {
 	Metadata map[string]interface{}      `json:"metadata,omitempty"`
 }
 
-// JobResult represents the result of a job execution
-type JobResult struct {
+// JobResultPool represents the result of a job execution
+type JobResultPool struct {
 	JobID    string                 `json:"job_id"`
 	Result   interface{}            `json:"result"`
 	Error    error                  `json:"error"`
@@ -173,7 +160,7 @@ type JobResult struct {
 }
 
 // PoolStats holds worker pool statistics - all atomic for thread safety
-type PoolStats struct {
+type PoolStatsPool struct {
 	ActiveWorkers    atomic.Int64
 	IdleWorkers      atomic.Int64
 	TotalWorkers     atomic.Int64
@@ -203,18 +190,18 @@ type HealthStatus struct {
 }
 
 // New creates a new worker pool with the given configuration
-func New(config Config) (*WorkerPool, error) {
-	if err := validateConfig(config); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidConfig, err)
+func NewPool(config ConfigPool) (*WorkerPool, error) {
+	if err := validateConfigPool(config); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrPoolInvalidConfigPool, err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	pool := &WorkerPool{
 		config:     config,
-		jobQueue:   make(chan Job, config.QueueSize),
-		jobResults: make(chan JobResult, config.QueueSize),
-		stats:      &PoolStats{},
+		jobQueue:   make(chan JobPool, config.QueueSize),
+		jobResults: make(chan JobResultPool, config.QueueSize),
+		stats:      &PoolStatsPool{},
 		ctx:        ctx,
 		cancel:     cancel,
 	}
@@ -228,7 +215,7 @@ func New(config Config) (*WorkerPool, error) {
 	// Initialize workers
 	if err := pool.initializeWorkers(); err != nil {
 		cancel()
-		return nil, fmt.Errorf("%w: %v", ErrWorkerCreationFailed, err)
+		return nil, fmt.Errorf("%w: %v", ErrPoolWorkerCreationFailed, err)
 	}
 
 	// Start background processes
@@ -238,47 +225,47 @@ func New(config Config) (*WorkerPool, error) {
 }
 
 // validateConfig validates the pool configuration
-func validateConfig(config Config) error {
-	if config.MinWorkers < MinWorkersLimit || config.MinWorkers > MaxWorkersLimit {
-		return fmt.Errorf("min workers must be between %d and %d, got %d", MinWorkersLimit, MaxWorkersLimit, config.MinWorkers)
+func validateConfigPool(config ConfigPool) error {
+	if config.MinWorkers < MinWorkersLimitPool || config.MinWorkers > MaxWorkersLimitPool {
+		return fmt.Errorf("min workers must be between %d and %d, got %d", MinWorkersLimitPool, MaxWorkersLimitPool, config.MinWorkers)
 	}
-	if config.MaxWorkers < MinWorkersLimit || config.MaxWorkers > MaxWorkersLimit {
-		return fmt.Errorf("max workers must be between %d and %d, got %d", MinWorkersLimit, MaxWorkersLimit, config.MaxWorkers)
+	if config.MaxWorkers < MinWorkersLimitPool || config.MaxWorkers > MaxWorkersLimitPool {
+		return fmt.Errorf("max workers must be between %d and %d, got %d", MinWorkersLimitPool, MaxWorkersLimitPool, config.MaxWorkers)
 	}
 	if config.MinWorkers > config.MaxWorkers {
 		return fmt.Errorf("min workers (%d) cannot exceed max workers (%d)", config.MinWorkers, config.MaxWorkers)
 	}
-	if config.QueueSize < MinQueueSizeLimit || config.QueueSize > MaxQueueSizeLimit {
-		return fmt.Errorf("queue size must be between %d and %d, got %d", MinQueueSizeLimit, MaxQueueSizeLimit, config.QueueSize)
+	if config.QueueSize < MinQueueSizeLimitPool || config.QueueSize > MaxQueueSizeLimitPool {
+		return fmt.Errorf("queue size must be between %d and %d, got %d", MinQueueSizeLimitPool, MaxQueueSizeLimitPool, config.QueueSize)
 	}
-	if config.IdleTimeout < MinIdleTimeoutLimit || config.IdleTimeout > MaxIdleTimeoutLimit {
-		return fmt.Errorf("idle timeout must be between %v and %v, got %v", MinIdleTimeoutLimit, MaxIdleTimeoutLimit, config.IdleTimeout)
+	if config.IdleTimeout < MinIdleTimeoutLimitPool || config.IdleTimeout > MaxIdleTimeoutLimitPool {
+		return fmt.Errorf("idle timeout must be between %v and %v, got %v", MinIdleTimeoutLimitPool, MaxIdleTimeoutLimitPool, config.IdleTimeout)
 	}
-	if config.ScaleUpThreshold < MinScaleUpThresholdLimit || config.ScaleUpThreshold > MaxScaleUpThresholdLimit {
-		return fmt.Errorf("scale up threshold must be between %d and %d, got %d", MinScaleUpThresholdLimit, MaxScaleUpThresholdLimit, config.ScaleUpThreshold)
+	if config.ScaleUpThreshold < MinScaleUpThresholdLimitPool || config.ScaleUpThreshold > MaxScaleUpThresholdLimitPool {
+		return fmt.Errorf("scale up threshold must be between %d and %d, got %d", MinScaleUpThresholdLimitPool, MaxScaleUpThresholdLimitPool, config.ScaleUpThreshold)
 	}
-	if config.ScaleDownThreshold < MinScaleDownThresholdLimit || config.ScaleDownThreshold > MaxScaleDownThresholdLimit {
-		return fmt.Errorf("scale down threshold must be between %d and %d, got %d", MinScaleDownThresholdLimit, MaxScaleDownThresholdLimit, config.ScaleDownThreshold)
+	if config.ScaleDownThreshold < MinScaleDownThresholdLimitPool || config.ScaleDownThreshold > MaxScaleDownThresholdLimitPool {
+		return fmt.Errorf("scale down threshold must be between %d and %d, got %d", MinScaleDownThresholdLimitPool, MaxScaleDownThresholdLimitPool, config.ScaleDownThreshold)
 	}
-	if config.ScaleUpCooldown < MinScaleUpCooldownLimit || config.ScaleUpCooldown > MaxScaleUpCooldownLimit {
-		return fmt.Errorf("scale up cooldown must be between %v and %v, got %v", MinScaleUpCooldownLimit, MaxScaleUpCooldownLimit, config.ScaleUpCooldown)
+	if config.ScaleUpCooldown < MinScaleUpCooldownLimitPool || config.ScaleUpCooldown > MaxScaleUpCooldownLimitPool {
+		return fmt.Errorf("scale up cooldown must be between %v and %v, got %v", MinScaleUpCooldownLimitPool, MaxScaleUpCooldownLimitPool, config.ScaleUpCooldown)
 	}
-	if config.ScaleDownCooldown < MinScaleDownCooldownLimit || config.ScaleDownCooldown > MaxScaleDownCooldownLimit {
-		return fmt.Errorf("scale down cooldown must be between %v and %v, got %v", MinScaleDownCooldownLimit, MaxScaleDownCooldownLimit, config.ScaleDownCooldown)
+	if config.ScaleDownCooldown < MinScaleDownCooldownLimitPool || config.ScaleDownCooldown > MaxScaleDownCooldownLimitPool {
+		return fmt.Errorf("scale down cooldown must be between %v and %v, got %v", MinScaleDownCooldownLimitPool, MaxScaleDownCooldownLimitPool, config.ScaleDownCooldown)
 	}
 	return nil
 }
 
 // validateJob validates a job before submission
-func validateJob(job Job) error {
+func validateJobPool(job JobPool) error {
 	if job.Task == nil {
 		return fmt.Errorf("job task function cannot be nil")
 	}
 	if job.Timeout < 0 {
 		return fmt.Errorf("job timeout cannot be negative")
 	}
-	if job.Timeout > 0 && (job.Timeout < MinJobTimeoutLimit || job.Timeout > MaxJobTimeoutLimit) {
-		return fmt.Errorf("job timeout must be between %v and %v, got %v", MinJobTimeoutLimit, MaxJobTimeoutLimit, job.Timeout)
+	if job.Timeout > 0 && (job.Timeout < MinJobTimeoutLimitPool || job.Timeout > MaxJobTimeoutLimitPool) {
+		return fmt.Errorf("job timeout must be between %v and %v, got %v", MinJobTimeoutLimitPool, MaxJobTimeoutLimitPool, job.Timeout)
 	}
 	return nil
 }
@@ -306,9 +293,9 @@ func (wp *WorkerPool) initializeWorkers() error {
 // createWorker creates a new worker
 func (wp *WorkerPool) createWorker(id int) *Worker {
 	worker := &Worker{
-		ID:       id,
+		id:       id,
 		pool:     wp,
-		jobChan:  make(chan Job, 1),
+		jobChan:  make(chan JobPool, 1),
 		stopChan: make(chan struct{}, 1), // Buffered to prevent blocking
 		stats:    &WorkerStats{},
 		active:   0,
@@ -340,14 +327,14 @@ func (wp *WorkerPool) startBackgroundProcesses() {
 }
 
 // Submit submits a job to the worker pool
-func (wp *WorkerPool) Submit(job Job) error {
+func (wp *WorkerPool) Submit(job JobPool) error {
 	if atomic.LoadInt32(&wp.closed) == 1 {
 		return ErrPoolClosed
 	}
 
 	// Validate job
-	if err := validateJob(job); err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidJob, err)
+	if err := validateJobPool(job); err != nil {
+		return fmt.Errorf("%w: %v", ErrPoolInvalidJob, err)
 	}
 
 	// Set default values
@@ -358,7 +345,7 @@ func (wp *WorkerPool) Submit(job Job) error {
 		job.Created = time.Now()
 	}
 	if job.Timeout == 0 {
-		job.Timeout = DefaultJobTimeout
+		job.Timeout = DefaultJobTimeoutPool
 	}
 
 	// Try to submit job (this provides backpressure)
@@ -367,24 +354,24 @@ func (wp *WorkerPool) Submit(job Job) error {
 		wp.stats.QueuedJobs.Add(1)
 		return nil
 	default:
-		return ErrJobQueueFull
+		return ErrPoolJobQueueFull
 	}
 }
 
 // SubmitWithContext submits a job with context support
-func (wp *WorkerPool) SubmitWithContext(ctx context.Context, job Job) error {
+func (wp *WorkerPool) SubmitWithContext(ctx context.Context, job JobPool) error {
 	if atomic.LoadInt32(&wp.closed) == 1 {
 		return ErrPoolClosed
 	}
 
 	// Validate context
 	if ctx == nil {
-		return fmt.Errorf("%w: context cannot be nil", ErrInvalidJob)
+		return fmt.Errorf("%w: context cannot be nil", ErrPoolInvalidJob)
 	}
 
 	// Validate job
-	if err := validateJob(job); err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidJob, err)
+	if err := validateJobPool(job); err != nil {
+		return fmt.Errorf("%w: %v", ErrPoolInvalidJob, err)
 	}
 
 	// Set default values
@@ -395,7 +382,7 @@ func (wp *WorkerPool) SubmitWithContext(ctx context.Context, job Job) error {
 		job.Created = time.Now()
 	}
 	if job.Timeout == 0 {
-		job.Timeout = DefaultJobTimeout
+		job.Timeout = DefaultJobTimeoutPool
 	}
 
 	// Try to submit job with context
@@ -404,20 +391,20 @@ func (wp *WorkerPool) SubmitWithContext(ctx context.Context, job Job) error {
 		wp.stats.QueuedJobs.Add(1)
 		return nil
 	case <-ctx.Done():
-		return fmt.Errorf("%w: %v", ErrContextCancelled, ctx.Err())
+		return fmt.Errorf("%w: %v", ErrPoolContextCancelled, ctx.Err())
 	default:
-		return ErrJobQueueFull
+		return ErrPoolJobQueueFull
 	}
 }
 
 // SubmitBatch submits multiple jobs as a batch
-func (wp *WorkerPool) SubmitBatch(jobs []Job) ([]error, error) {
+func (wp *WorkerPool) SubmitBatch(jobs []JobPool) ([]error, error) {
 	if atomic.LoadInt32(&wp.closed) == 1 {
 		return nil, ErrPoolClosed
 	}
 
 	if len(jobs) == 0 {
-		return nil, fmt.Errorf("%w: batch cannot be empty", ErrInvalidJob)
+		return nil, fmt.Errorf("%w: batch cannot be empty", ErrPoolInvalidJob)
 	}
 
 	errors := make([]error, len(jobs))
@@ -425,10 +412,10 @@ func (wp *WorkerPool) SubmitBatch(jobs []Job) ([]error, error) {
 	successCount := 0
 
 	for i, job := range jobs {
-		if err := wp.Submit(job); err != nil {
+		if err := wp.Submit(JobPool(job)); err != nil {
 			errors[i] = err
 			if batchError == nil {
-				batchError = fmt.Errorf("%w: %d/%d jobs failed", ErrInvalidJob, len(jobs)-successCount, len(jobs))
+				batchError = fmt.Errorf("%w: %d/%d jobs failed", ErrPoolInvalidJob, len(jobs)-successCount, len(jobs))
 			}
 		} else {
 			successCount++
@@ -439,35 +426,35 @@ func (wp *WorkerPool) SubmitBatch(jobs []Job) ([]error, error) {
 }
 
 // GetResult retrieves a job result
-func (wp *WorkerPool) GetResult() (JobResult, error) {
+func (wp *WorkerPool) GetResult() (JobResultPool, error) {
 	select {
 	case result := <-wp.jobResults:
 		return result, nil
 	case <-wp.ctx.Done():
-		return JobResult{}, ErrPoolClosed
+		return JobResultPool{}, ErrPoolClosed
 	default:
-		return JobResult{}, ErrNoResultsAvailable
+		return JobResultPool{}, ErrPoolNoResultsAvailable
 	}
 }
 
 // GetResultWithTimeout retrieves a job result with timeout
-func (wp *WorkerPool) GetResultWithTimeout(timeout time.Duration) (JobResult, error) {
+func (wp *WorkerPool) GetResultWithTimeout(timeout time.Duration) (JobResultPool, error) {
 	if timeout <= 0 {
-		return JobResult{}, fmt.Errorf("%w: timeout must be positive", ErrTimeout)
+		return JobResultPool{}, fmt.Errorf("%w: timeout must be positive", ErrPoolTimeout)
 	}
 
 	select {
 	case result := <-wp.jobResults:
 		return result, nil
 	case <-time.After(timeout):
-		return JobResult{}, ErrTimeout
+		return JobResultPool{}, ErrPoolTimeout
 	case <-wp.ctx.Done():
-		return JobResult{}, ErrPoolClosed
+		return JobResultPool{}, ErrPoolClosed
 	}
 }
 
 // GetStats returns current pool statistics
-func (wp *WorkerPool) GetStats() *PoolStats {
+func (wp *WorkerPool) GetStats() *PoolStatsPool {
 	// Calculate derived metrics
 	completedJobs := wp.stats.CompletedJobs.Load()
 	totalJobTime := wp.stats.TotalJobTime.Load()
@@ -503,7 +490,7 @@ func (wp *WorkerPool) calculateJobsPerSecond() {
 // ScaleUp adds workers to the pool
 func (wp *WorkerPool) ScaleUp(count int) error {
 	if count <= 0 {
-		return fmt.Errorf("%w: scale up count must be positive", ErrScalingFailed)
+		return fmt.Errorf("%w: scale up count must be positive", ErrPoolScalingFailed)
 	}
 
 	wp.mu.Lock()
@@ -513,7 +500,7 @@ func (wp *WorkerPool) ScaleUp(count int) error {
 	maxNewWorkers := wp.config.MaxWorkers - currentWorkers
 
 	if maxNewWorkers <= 0 {
-		return fmt.Errorf("%w: cannot scale up - already at maximum workers (%d)", ErrScalingFailed, wp.config.MaxWorkers)
+		return fmt.Errorf("%w: cannot scale up - already at maximum workers (%d)", ErrPoolScalingFailed, wp.config.MaxWorkers)
 	}
 
 	if count > maxNewWorkers {
@@ -524,7 +511,7 @@ func (wp *WorkerPool) ScaleUp(count int) error {
 		workerID := currentWorkers + i
 		worker := wp.createWorker(workerID)
 		if worker == nil {
-			return fmt.Errorf("%w: failed to create worker %d", ErrScalingFailed, workerID)
+			return fmt.Errorf("%w: failed to create worker %d", ErrPoolScalingFailed, workerID)
 		}
 		wp.workers = append(wp.workers, worker)
 		wp.workerPool <- worker
@@ -541,7 +528,7 @@ func (wp *WorkerPool) ScaleUp(count int) error {
 // ScaleDown removes workers from the pool
 func (wp *WorkerPool) ScaleDown(count int) error {
 	if count <= 0 {
-		return fmt.Errorf("%w: scale down count must be positive", ErrScalingFailed)
+		return fmt.Errorf("%w: scale down count must be positive", ErrPoolScalingFailed)
 	}
 
 	wp.mu.Lock()
@@ -551,7 +538,7 @@ func (wp *WorkerPool) ScaleDown(count int) error {
 	minWorkers := wp.config.MinWorkers
 
 	if currentWorkers <= minWorkers {
-		return fmt.Errorf("%w: cannot scale down - already at minimum workers (%d)", ErrScalingFailed, minWorkers)
+		return fmt.Errorf("%w: cannot scale down - already at minimum workers (%d)", ErrPoolScalingFailed, minWorkers)
 	}
 
 	maxRemovable := currentWorkers - minWorkers
@@ -611,7 +598,7 @@ func (wp *WorkerPool) Close() error {
 	select {
 	case <-done:
 		// All workers finished successfully
-	case <-time.After(GracefulShutdownTimeout):
+	case <-time.After(GracefulShutdownTimeoutPool):
 		// Force shutdown after timeout
 	}
 
@@ -685,7 +672,7 @@ func (wp *WorkerPool) processJobResults() {
 
 // autoScale automatically scales the worker pool based on load
 func (wp *WorkerPool) autoScale() {
-	ticker := time.NewTicker(AutoScaleInterval)
+	ticker := time.NewTicker(AutoScaleIntervalPool)
 	defer ticker.Stop()
 
 	var lastScaleUp, lastScaleDown time.Time
@@ -740,7 +727,7 @@ func (wp *WorkerPool) autoScale() {
 
 // collectMetrics collects detailed metrics if enabled
 func (wp *WorkerPool) collectMetrics() {
-	ticker := time.NewTicker(MetricsCollectionInterval)
+	ticker := time.NewTicker(MetricsCollectionIntervalPool)
 	defer ticker.Stop()
 
 	for {

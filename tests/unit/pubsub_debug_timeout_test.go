@@ -5,18 +5,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/SeaSBee/go-patternx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/SeaSBee/go-patternx/patternx/pubsub"
 )
 
 // TestDebugTimeoutHandling tests timeout handling with detailed logging
 func TestDebugTimeoutHandling(t *testing.T) {
 	store := NewMockStore()
-	config := pubsub.DefaultConfig(store)
+	config := patternx.DefaultConfigPubSub(store)
 	config.OperationTimeout = 50 * time.Millisecond // Short timeout
-	ps, err := pubsub.NewPubSub(config)
+	ps, err := patternx.NewPubSub(config)
 	require.NoError(t, err)
 	defer ps.Close(context.Background())
 
@@ -24,14 +23,14 @@ func TestDebugTimeoutHandling(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create slow handler that exceeds timeout
-	handler := func(ctx context.Context, msg *pubsub.Message) error {
+	handler := func(ctx context.Context, msg *patternx.MessagePubSub) error {
 		t.Logf("Handler started for message: %s", msg.ID)
 		time.Sleep(200 * time.Millisecond) // Longer than timeout
 		t.Logf("Handler completed for message: %s", msg.ID)
 		return nil
 	}
 
-	_, err = ps.Subscribe(context.Background(), "timeout-debug", "sub-1", handler, &pubsub.MessageFilter{})
+	_, err = ps.Subscribe(context.Background(), "timeout-debug", "sub-1", handler, &patternx.MessageFilter{})
 	require.NoError(t, err)
 
 	// Publish message

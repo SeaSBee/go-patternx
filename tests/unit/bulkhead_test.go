@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SeaSBee/go-patternx/patternx/bulkhead"
+	"github.com/SeaSBee/go-patternx"
 )
 
 func TestNewBulkhead(t *testing.T) {
-	config := bulkhead.DefaultBulkheadConfig()
-	b, err := bulkhead.NewBulkhead(config)
+	config := patternx.DefaultBulkheadConfig()
+	b, err := patternx.NewBulkhead(config)
 
 	if err != nil {
 		t.Fatalf("Failed to create bulkhead: %v", err)
@@ -38,13 +38,13 @@ func TestNewBulkhead(t *testing.T) {
 }
 
 func TestBulkheadExecute(t *testing.T) {
-	config := bulkhead.BulkheadConfig{
+	config := patternx.BulkheadConfig{
 		MaxConcurrentCalls: 2,
 		MaxWaitDuration:    1 * time.Second,
 		MaxQueueSize:       5,
 		HealthThreshold:    0.5,
 	}
-	b, err := bulkhead.NewBulkhead(config)
+	b, err := patternx.NewBulkhead(config)
 	if err != nil {
 		t.Fatalf("Failed to create bulkhead: %v", err)
 	}
@@ -65,8 +65,8 @@ func TestBulkheadExecute(t *testing.T) {
 }
 
 func TestBulkheadExecuteWithError(t *testing.T) {
-	config := bulkhead.DefaultBulkheadConfig()
-	b, err := bulkhead.NewBulkhead(config)
+	config := patternx.DefaultBulkheadConfig()
+	b, err := patternx.NewBulkhead(config)
 	if err != nil {
 		t.Fatalf("Failed to create bulkhead: %v", err)
 	}
@@ -87,13 +87,13 @@ func TestBulkheadExecuteWithError(t *testing.T) {
 }
 
 func TestBulkheadConcurrencyLimit(t *testing.T) {
-	config := bulkhead.BulkheadConfig{
+	config := patternx.BulkheadConfig{
 		MaxConcurrentCalls: 2,
 		MaxWaitDuration:    100 * time.Millisecond,
 		MaxQueueSize:       5,
 		HealthThreshold:    0.5,
 	}
-	b, err := bulkhead.NewBulkhead(config)
+	b, err := patternx.NewBulkhead(config)
 	if err != nil {
 		t.Fatalf("Failed to create bulkhead: %v", err)
 	}
@@ -135,13 +135,13 @@ func TestBulkheadConcurrencyLimit(t *testing.T) {
 }
 
 func TestBulkheadTimeout(t *testing.T) {
-	config := bulkhead.BulkheadConfig{
+	config := patternx.BulkheadConfig{
 		MaxConcurrentCalls: 1,
 		MaxWaitDuration:    50 * time.Millisecond,
 		MaxQueueSize:       1,
 		HealthThreshold:    0.5,
 	}
-	b, err := bulkhead.NewBulkhead(config)
+	b, err := patternx.NewBulkhead(config)
 	if err != nil {
 		t.Fatalf("Failed to create bulkhead: %v", err)
 	}
@@ -173,13 +173,13 @@ func TestBulkheadTimeout(t *testing.T) {
 }
 
 func TestBulkheadQueueFull(t *testing.T) {
-	config := bulkhead.BulkheadConfig{
+	config := patternx.BulkheadConfig{
 		MaxConcurrentCalls: 1,
 		MaxWaitDuration:    50 * time.Millisecond,
 		MaxQueueSize:       1,
 		HealthThreshold:    0.5,
 	}
-	b, err := bulkhead.NewBulkhead(config)
+	b, err := patternx.NewBulkhead(config)
 	if err != nil {
 		t.Fatalf("Failed to create bulkhead: %v", err)
 	}
@@ -222,8 +222,8 @@ func TestBulkheadQueueFull(t *testing.T) {
 }
 
 func TestBulkheadExecuteAsync(t *testing.T) {
-	config := bulkhead.DefaultBulkheadConfig()
-	b, err := bulkhead.NewBulkhead(config)
+	config := patternx.DefaultBulkheadConfig()
+	b, err := patternx.NewBulkhead(config)
 	if err != nil {
 		t.Fatalf("Failed to create bulkhead: %v", err)
 	}
@@ -244,8 +244,8 @@ func TestBulkheadExecuteAsync(t *testing.T) {
 }
 
 func TestBulkheadMetrics(t *testing.T) {
-	config := bulkhead.DefaultBulkheadConfig()
-	b, err := bulkhead.NewBulkhead(config)
+	config := patternx.DefaultBulkheadConfig()
+	b, err := patternx.NewBulkhead(config)
 	if err != nil {
 		t.Fatalf("Failed to create bulkhead: %v", err)
 	}
@@ -276,8 +276,8 @@ func TestBulkheadMetrics(t *testing.T) {
 }
 
 func TestBulkheadResetMetrics(t *testing.T) {
-	config := bulkhead.DefaultBulkheadConfig()
-	b, err := bulkhead.NewBulkhead(config)
+	config := patternx.DefaultBulkheadConfig()
+	b, err := patternx.NewBulkhead(config)
 	if err != nil {
 		t.Fatalf("Failed to create bulkhead: %v", err)
 	}
@@ -303,8 +303,8 @@ func TestBulkheadResetMetrics(t *testing.T) {
 }
 
 func TestBulkheadIsHealthy(t *testing.T) {
-	config := bulkhead.DefaultBulkheadConfig()
-	b, err := bulkhead.NewBulkhead(config)
+	config := patternx.DefaultBulkheadConfig()
+	b, err := patternx.NewBulkhead(config)
 	if err != nil {
 		t.Fatalf("Failed to create bulkhead: %v", err)
 	}
@@ -353,8 +353,8 @@ func TestBulkheadIsHealthy(t *testing.T) {
 }
 
 func TestBulkheadContextCancellation(t *testing.T) {
-	config := bulkhead.DefaultBulkheadConfig()
-	b, err := bulkhead.NewBulkhead(config)
+	config := patternx.DefaultBulkheadConfig()
+	b, err := patternx.NewBulkhead(config)
 	if err != nil {
 		t.Fatalf("Failed to create bulkhead: %v", err)
 	}
@@ -374,14 +374,14 @@ func TestBulkheadContextCancellation(t *testing.T) {
 
 func TestBulkheadConfigValidation(t *testing.T) {
 	// Test with invalid config values
-	config := bulkhead.BulkheadConfig{
+	config := patternx.BulkheadConfig{
 		MaxConcurrentCalls: 0,
 		MaxWaitDuration:    0,
 		MaxQueueSize:       0,
 		HealthThreshold:    0.5,
 	}
 
-	_, err := bulkhead.NewBulkhead(config)
+	_, err := patternx.NewBulkhead(config)
 	if err == nil {
 		t.Error("Expected error for invalid config, got nil")
 	}
@@ -392,7 +392,7 @@ func TestBulkheadConfigValidation(t *testing.T) {
 
 func TestBulkheadConfigPresets(t *testing.T) {
 	// Test default config
-	defaultConfig := bulkhead.DefaultBulkheadConfig()
+	defaultConfig := patternx.DefaultBulkheadConfig()
 	if defaultConfig.MaxConcurrentCalls != 10 {
 		t.Errorf("Expected default MaxConcurrentCalls 10, got %d", defaultConfig.MaxConcurrentCalls)
 	}
@@ -404,7 +404,7 @@ func TestBulkheadConfigPresets(t *testing.T) {
 	}
 
 	// Test high performance config
-	highPerfConfig := bulkhead.HighPerformanceBulkheadConfig()
+	highPerfConfig := patternx.HighPerformanceBulkheadConfig()
 	if highPerfConfig.MaxConcurrentCalls != 50 {
 		t.Errorf("Expected high perf MaxConcurrentCalls 50, got %d", highPerfConfig.MaxConcurrentCalls)
 	}
@@ -416,7 +416,7 @@ func TestBulkheadConfigPresets(t *testing.T) {
 	}
 
 	// Test resource constrained config
-	resourceConfig := bulkhead.ResourceConstrainedBulkheadConfig()
+	resourceConfig := patternx.ResourceConstrainedBulkheadConfig()
 	if resourceConfig.MaxConcurrentCalls != 5 {
 		t.Errorf("Expected resource constrained MaxConcurrentCalls 5, got %d", resourceConfig.MaxConcurrentCalls)
 	}
@@ -429,8 +429,8 @@ func TestBulkheadConfigPresets(t *testing.T) {
 }
 
 func TestBulkheadConcurrentAccess(t *testing.T) {
-	config := bulkhead.DefaultBulkheadConfig()
-	b, err := bulkhead.NewBulkhead(config)
+	config := patternx.DefaultBulkheadConfig()
+	b, err := patternx.NewBulkhead(config)
 	if err != nil {
 		t.Fatalf("Failed to create bulkhead: %v", err)
 	}

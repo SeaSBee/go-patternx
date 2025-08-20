@@ -7,14 +7,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SeaSBee/go-patternx/patternx/retry"
+	"github.com/SeaSBee/go-patternx"
 )
 
 func TestRetrySuccess(t *testing.T) {
-	policy := retry.DefaultPolicy()
+	policy := patternx.DefaultPolicy()
 	attempts := 0
 
-	err := retry.Retry(policy, func() error {
+	err := patternx.Retry(policy, func() error {
 		attempts++
 		if attempts < 3 {
 			return errors.New("temporary error")
@@ -32,10 +32,10 @@ func TestRetrySuccess(t *testing.T) {
 }
 
 func TestRetryMaxAttemptsExceeded(t *testing.T) {
-	policy := retry.DefaultPolicy()
+	policy := patternx.DefaultPolicy()
 	expectedErr := errors.New("persistent error")
 
-	err := retry.Retry(policy, func() error {
+	err := patternx.Retry(policy, func() error {
 		return expectedErr
 	})
 
@@ -43,17 +43,17 @@ func TestRetryMaxAttemptsExceeded(t *testing.T) {
 		t.Error("Expected error after max attempts exceeded, got nil")
 	}
 
-	if !strings.Contains(err.Error(), "maximum retry attempts exceeded") {
-		t.Errorf("Expected error message to contain 'maximum retry attempts exceeded', got %v", err)
+	if !strings.Contains(err.Error(), "retry max attempts exceeded") {
+		t.Errorf("Expected error message to contain 'retry max attempts exceeded', got %v", err)
 	}
 }
 
 func TestRetryWithContext(t *testing.T) {
-	policy := retry.DefaultPolicy()
+	policy := patternx.DefaultPolicy()
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	err := retry.RetryWithContext(ctx, policy, func() error {
+	err := patternx.RetryWithContext(ctx, policy, func() error {
 		time.Sleep(200 * time.Millisecond) // Longer than context timeout
 		return errors.New("should timeout")
 	})
@@ -62,17 +62,17 @@ func TestRetryWithContext(t *testing.T) {
 		t.Error("Expected timeout error, got nil")
 	}
 
-	if !strings.Contains(err.Error(), "retry operation cancelled by context") {
-		t.Errorf("Expected error message to contain 'retry operation cancelled by context', got %v", err)
+	if !strings.Contains(err.Error(), "operation cancelled by context") {
+		t.Errorf("Expected error message to contain 'operation cancelled by context', got %v", err)
 	}
 }
 
 func TestRetryContextCancellation(t *testing.T) {
-	policy := retry.DefaultPolicy()
+	policy := patternx.DefaultPolicy()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
-	err := retry.RetryWithContext(ctx, policy, func() error {
+	err := patternx.RetryWithContext(ctx, policy, func() error {
 		return errors.New("should not execute")
 	})
 
@@ -80,16 +80,16 @@ func TestRetryContextCancellation(t *testing.T) {
 		t.Error("Expected context.Canceled error, got nil")
 	}
 
-	if !strings.Contains(err.Error(), "retry operation cancelled by context") {
-		t.Errorf("Expected error message to contain 'retry operation cancelled by context', got %v", err)
+	if !strings.Contains(err.Error(), "operation cancelled by context") {
+		t.Errorf("Expected error message to contain 'operation cancelled by context', got %v", err)
 	}
 }
 
 func TestRetryWithResult(t *testing.T) {
-	policy := retry.DefaultPolicy()
+	policy := patternx.DefaultPolicy()
 	attempts := 0
 
-	result, err := retry.RetryWithResult(policy, func() (string, error) {
+	result, err := patternx.RetryWithResult(policy, func() (string, error) {
 		attempts++
 		if attempts < 3 {
 			return "", errors.New("temporary error")
@@ -111,11 +111,11 @@ func TestRetryWithResult(t *testing.T) {
 }
 
 func TestRetryWithResultAndContext(t *testing.T) {
-	policy := retry.DefaultPolicy()
+	policy := patternx.DefaultPolicy()
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	result, err := retry.RetryWithResultAndContext(ctx, policy, func() (string, error) {
+	result, err := patternx.RetryWithResultAndContext(ctx, policy, func() (string, error) {
 		time.Sleep(200 * time.Millisecond) // Longer than context timeout
 		return "", errors.New("should timeout")
 	})
@@ -131,7 +131,7 @@ func TestRetryWithResultAndContext(t *testing.T) {
 
 func TestRetryPolicyPresets(t *testing.T) {
 	// Test default policy
-	defaultPolicy := retry.DefaultPolicy()
+	defaultPolicy := patternx.DefaultPolicy()
 	if defaultPolicy.MaxAttempts != 3 {
 		t.Errorf("Expected default MaxAttempts 3, got %d", defaultPolicy.MaxAttempts)
 	}
@@ -149,7 +149,7 @@ func TestRetryPolicyPresets(t *testing.T) {
 	}
 
 	// Test aggressive policy
-	aggressivePolicy := retry.AggressivePolicy()
+	aggressivePolicy := patternx.AggressivePolicy()
 	if aggressivePolicy.MaxAttempts != 5 {
 		t.Errorf("Expected aggressive MaxAttempts 5, got %d", aggressivePolicy.MaxAttempts)
 	}
@@ -164,7 +164,7 @@ func TestRetryPolicyPresets(t *testing.T) {
 	}
 
 	// Test conservative policy
-	conservativePolicy := retry.ConservativePolicy()
+	conservativePolicy := patternx.ConservativePolicy()
 	if conservativePolicy.MaxAttempts != 2 {
 		t.Errorf("Expected conservative MaxAttempts 2, got %d", conservativePolicy.MaxAttempts)
 	}
@@ -177,7 +177,7 @@ func TestRetryPolicyPresets(t *testing.T) {
 }
 
 func TestRetryNonRetryableError(t *testing.T) {
-	policy := retry.Policy{
+	policy := patternx.Policy{
 		MaxAttempts:     3,
 		InitialDelay:    10 * time.Millisecond,
 		MaxDelay:        100 * time.Millisecond,
@@ -191,7 +191,7 @@ func TestRetryNonRetryableError(t *testing.T) {
 	nonRetryableErr := errors.New("non-retryable")
 	attempts := 0
 
-	err := retry.Retry(policy, func() error {
+	err := patternx.Retry(policy, func() error {
 		attempts++
 		return nonRetryableErr
 	})
@@ -207,7 +207,7 @@ func TestRetryNonRetryableError(t *testing.T) {
 
 func TestRetryRetryableError(t *testing.T) {
 	retryableErr := errors.New("retryable")
-	policy := retry.Policy{
+	policy := patternx.Policy{
 		MaxAttempts:     3,
 		InitialDelay:    10 * time.Millisecond,
 		MaxDelay:        100 * time.Millisecond,
@@ -220,7 +220,7 @@ func TestRetryRetryableError(t *testing.T) {
 
 	attempts := 0
 
-	err := retry.Retry(policy, func() error {
+	err := patternx.Retry(policy, func() error {
 		attempts++
 		return retryableErr
 	})
@@ -235,7 +235,7 @@ func TestRetryRetryableError(t *testing.T) {
 }
 
 func TestRetryDelayCalculation(t *testing.T) {
-	policy := retry.Policy{
+	policy := patternx.Policy{
 		MaxAttempts:     3,
 		InitialDelay:    10 * time.Millisecond,
 		MaxDelay:        100 * time.Millisecond,
@@ -248,7 +248,7 @@ func TestRetryDelayCalculation(t *testing.T) {
 	start := time.Now()
 	attempts := 0
 
-	err := retry.Retry(policy, func() error {
+	err := patternx.Retry(policy, func() error {
 		attempts++
 		return errors.New("retry")
 	})
@@ -267,7 +267,7 @@ func TestRetryDelayCalculation(t *testing.T) {
 }
 
 func TestRetryWithJitter(t *testing.T) {
-	policy := retry.Policy{
+	policy := patternx.Policy{
 		MaxAttempts:     3,
 		InitialDelay:    10 * time.Millisecond,
 		MaxDelay:        100 * time.Millisecond,
@@ -280,7 +280,7 @@ func TestRetryWithJitter(t *testing.T) {
 	start := time.Now()
 	attempts := 0
 
-	err := retry.Retry(policy, func() error {
+	err := patternx.Retry(policy, func() error {
 		attempts++
 		return errors.New("retry")
 	})
@@ -298,7 +298,7 @@ func TestRetryWithJitter(t *testing.T) {
 }
 
 func TestRetryZeroMultiplier(t *testing.T) {
-	policy := retry.Policy{
+	policy := patternx.Policy{
 		MaxAttempts:     3,
 		InitialDelay:    10 * time.Millisecond,
 		MaxDelay:        100 * time.Millisecond,
@@ -310,7 +310,7 @@ func TestRetryZeroMultiplier(t *testing.T) {
 
 	attempts := 0
 
-	err := retry.Retry(policy, func() error {
+	err := patternx.Retry(policy, func() error {
 		attempts++
 		return errors.New("retry")
 	})
@@ -325,10 +325,10 @@ func TestRetryZeroMultiplier(t *testing.T) {
 }
 
 func TestRetryImmediateSuccess(t *testing.T) {
-	policy := retry.DefaultPolicy()
+	policy := patternx.DefaultPolicy()
 	attempts := 0
 
-	err := retry.Retry(policy, func() error {
+	err := patternx.Retry(policy, func() error {
 		attempts++
 		return nil // Immediate success
 	})
@@ -343,10 +343,10 @@ func TestRetryImmediateSuccess(t *testing.T) {
 }
 
 func TestRetryWithResultImmediateSuccess(t *testing.T) {
-	policy := retry.DefaultPolicy()
+	policy := patternx.DefaultPolicy()
 	attempts := 0
 
-	result, err := retry.RetryWithResult(policy, func() (int, error) {
+	result, err := patternx.RetryWithResult(policy, func() (int, error) {
 		attempts++
 		return 42, nil // Immediate success
 	})

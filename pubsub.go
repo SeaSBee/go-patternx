@@ -1,4 +1,4 @@
-package pubsub
+package patternx
 
 import (
 	"context"
@@ -15,50 +15,50 @@ import (
 
 // Common errors for pub/sub operations
 var (
-	ErrInvalidConfig         = errors.New("invalid pub/sub configuration")
-	ErrTopicNotFound         = errors.New("topic not found")
-	ErrSubscriptionNotFound  = errors.New("subscription not found")
-	ErrMessageTooLarge       = errors.New("message exceeds maximum size")
-	ErrSubscriptionClosed    = errors.New("subscription is closed")
-	ErrPublisherClosed       = errors.New("publisher is closed")
-	ErrContextCancelled      = errors.New("operation cancelled by context")
-	ErrMessageDeliveryFailed = errors.New("message delivery failed")
-	ErrStoreUnavailable      = errors.New("store is not available")
-	ErrInvalidMessage        = errors.New("invalid message")
-	ErrTopicClosed           = errors.New("topic is closed")
-	ErrSubscriptionLimit     = errors.New("subscription limit exceeded")
-	ErrConcurrencyLimit      = errors.New("concurrency limit exceeded")
-	ErrBatchTooLarge         = errors.New("batch size exceeds limit")
-	ErrInvalidHeaders        = errors.New("invalid message headers")
-	ErrCircuitBreakerOpen    = errors.New("circuit breaker is open")
-	ErrDeadLetterQueue       = errors.New("message sent to dead letter queue")
-	ErrTimeout               = errors.New("operation timeout")
-	ErrPanicRecovered        = errors.New("panic recovered in message handler")
+	ErrInvalidConfigPubSub      = errors.New("invalid pub/sub configuration")
+	ErrTopicNotFoundPubSub      = errors.New("topic not found")
+	ErrSubscriptionNotFound     = errors.New("subscription not found")
+	ErrMessageTooLargePubSub    = errors.New("message exceeds maximum size")
+	ErrSubscriptionClosedPubSub = errors.New("subscription is closed")
+	ErrPublisherClosedPubSub    = errors.New("publisher is closed")
+	ErrContextCancelledPubSub   = errors.New("operation cancelled by context")
+	ErrMessageDeliveryFailed    = errors.New("message delivery failed")
+	ErrStoreUnavailablePubSub   = errors.New("store is not available")
+	ErrInvalidMessagePubSub     = errors.New("invalid message")
+	ErrTopicClosedPubSub        = errors.New("topic is closed")
+	ErrSubscriptionLimitPubSub  = errors.New("subscription limit exceeded")
+	ErrConcurrencyLimitPubSub   = errors.New("concurrency limit exceeded")
+	ErrBatchTooLargePubSub      = errors.New("batch size exceeds limit")
+	ErrInvalidHeadersPubSub     = errors.New("invalid message headers")
+	ErrCircuitBreakerOpenPubSub = errors.New("circuit breaker is open")
+	ErrDeadLetterQueuePubSub    = errors.New("message sent to dead letter queue")
+	ErrTimeoutPubSub            = errors.New("operation timeout")
+	ErrPanicRecoveredPubSub     = errors.New("panic recovered in message handler")
 )
 
 // Constants for production constraints
 const (
-	MaxMessageSize                 = 10 * 1024 * 1024 // 10MB max message size
-	MinMessageSize                 = 1                // 1 byte min message size
-	MaxTopicNameLength             = 255              // Max topic name length
-	MaxSubscriberCount             = 10000            // Max subscribers per topic
-	MaxConcurrentOperations        = 1000             // Max concurrent operations
-	MaxBatchSize                   = 1000             // Max messages in a batch
-	DefaultBufferSize              = 10000            // Default message buffer size
-	DefaultTTL                     = 24 * time.Hour
-	DefaultKeyPrefix               = "pubsub"
-	MaxRetryAttempts               = 3
-	RetryDelay                     = 100 * time.Millisecond
-	DefaultOperationTimeout        = 30 * time.Second
-	DefaultCircuitBreakerThreshold = 5
-	DefaultCircuitBreakerTimeout   = 60 * time.Second
-	MaxHeaderKeyLength             = 100
-	MaxHeaderValueLength           = 1000
-	MaxHeadersCount                = 50
+	MaxMessageSizePubSub                 = 10 * 1024 * 1024 // 10MB max message size
+	MinMessageSizePubSub                 = 1                // 1 byte min message size
+	MaxTopicNameLengthPubSub             = 255              // Max topic name length
+	MaxSubscriberCountPubSub             = 10000            // Max subscribers per topic
+	MaxConcurrentOperationsPubSub        = 1000             // Max concurrent operations
+	MaxBatchSizePubSub                   = 1000             // Max messages in a batch
+	DefaultBufferSizePubSub              = 10000            // Default message buffer size
+	DefaultTTLPubSub                     = 24 * time.Hour
+	DefaultKeyPrefixPubSub               = "pubsub"
+	MaxRetryAttemptsPubSub               = 3
+	RetryDelayPubSub                     = 100 * time.Millisecond
+	DefaultOperationTimeoutPubSub        = 30 * time.Second
+	DefaultCircuitBreakerThresholdPubSub = 5
+	DefaultCircuitBreakerTimeoutPubSub   = 60 * time.Second
+	MaxHeaderKeyLengthPubSub             = 100
+	MaxHeaderValueLengthPubSub           = 1000
+	MaxHeadersCountPubSub                = 50
 )
 
 // Message represents a pub/sub message with metadata
-type Message struct {
+type MessagePubSub struct {
 	ID          string            `json:"id"`
 	Topic       string            `json:"topic"`
 	Data        []byte            `json:"data"`
@@ -73,13 +73,13 @@ type Message struct {
 }
 
 // MessageHandler defines the interface for processing messages
-type MessageHandler func(ctx context.Context, msg *Message) error
+type MessageHandlerPubSub func(ctx context.Context, msg *MessagePubSub) error
 
 // DeadLetterHandler defines the interface for handling failed messages
-type DeadLetterHandler func(ctx context.Context, msg *Message, err error) error
+type DeadLetterHandlerPubSub func(ctx context.Context, msg *MessagePubSub, err error) error
 
 // CircuitBreaker tracks failure rates and prevents cascading failures
-type CircuitBreaker struct {
+type CircuitBreakerPubSub struct {
 	failureCount atomic.Int64
 	lastFailure  atomic.Value // time.Time
 	state        atomic.Int32 // 0: closed, 1: open, 2: half-open
@@ -88,15 +88,15 @@ type CircuitBreaker struct {
 }
 
 // NewCircuitBreaker creates a new circuit breaker
-func NewCircuitBreaker(threshold int64, timeout time.Duration) *CircuitBreaker {
-	return &CircuitBreaker{
+func NewCircuitBreakerPubSub(threshold int64, timeout time.Duration) *CircuitBreakerPubSub {
+	return &CircuitBreakerPubSub{
 		threshold: threshold,
 		timeout:   timeout,
 	}
 }
 
 // Execute runs the operation with circuit breaker protection
-func (cb *CircuitBreaker) Execute(ctx context.Context, operation func() error) error {
+func (cb *CircuitBreakerPubSub) Execute(ctx context.Context, operation func() error) error {
 	state := cb.getState()
 
 	switch state {
@@ -121,15 +121,15 @@ func (cb *CircuitBreaker) Execute(ctx context.Context, operation func() error) e
 	return nil
 }
 
-func (cb *CircuitBreaker) getState() int32 {
+func (cb *CircuitBreakerPubSub) getState() int32 {
 	return cb.state.Load()
 }
 
-func (cb *CircuitBreaker) setState(state int32) {
+func (cb *CircuitBreakerPubSub) setState(state int32) {
 	cb.state.Store(state)
 }
 
-func (cb *CircuitBreaker) shouldAttemptReset() bool {
+func (cb *CircuitBreakerPubSub) shouldAttemptReset() bool {
 	lastFailure := cb.lastFailure.Load()
 	if lastFailure == nil {
 		return true
@@ -137,7 +137,7 @@ func (cb *CircuitBreaker) shouldAttemptReset() bool {
 	return time.Since(lastFailure.(time.Time)) > cb.timeout
 }
 
-func (cb *CircuitBreaker) recordFailure() {
+func (cb *CircuitBreakerPubSub) recordFailure() {
 	cb.failureCount.Add(1)
 	cb.lastFailure.Store(time.Now())
 
@@ -146,23 +146,23 @@ func (cb *CircuitBreaker) recordFailure() {
 	}
 }
 
-func (cb *CircuitBreaker) recordSuccess() {
+func (cb *CircuitBreakerPubSub) recordSuccess() {
 	cb.failureCount.Store(0)
 	cb.setState(0) // Closed
 }
 
 // Subscription represents a topic subscription with reliability features
-type Subscription struct {
+type SubscriptionPubSub struct {
 	ID                string
 	Topic             string
-	Handler           MessageHandler
-	DeadLetterHandler DeadLetterHandler
+	Handler           MessageHandlerPubSub
+	DeadLetterHandler DeadLetterHandlerPubSub
 	Filter            MessageFilter
 	BatchSize         int
 	BufferSize        int
 	MaxRetries        int
 	RetryDelay        time.Duration
-	CircuitBreaker    *CircuitBreaker
+	CircuitBreaker    *CircuitBreakerPubSub
 	closed            int32
 	metrics           *SubscriptionMetrics
 	workerPool        chan struct{} // Semaphore for concurrency control
@@ -191,14 +191,14 @@ type MessageFilter struct {
 }
 
 // Publisher manages message publishing with reliability features
-type Publisher struct {
-	topics         map[string]*Topic
+type PublisherPubSub struct {
+	topics         map[string]*TopicPubSub
 	mu             sync.RWMutex
 	store          PubSubStore
 	maxRetries     int
 	retryDelay     time.Duration
 	metrics        *PublisherMetrics
-	circuitBreaker *CircuitBreaker
+	circuitBreaker *CircuitBreakerPubSub
 	workerPool     chan struct{} // Semaphore for concurrency control
 }
 
@@ -214,11 +214,11 @@ type PublisherMetrics struct {
 }
 
 // Topic represents a message topic with subscribers
-type Topic struct {
+type TopicPubSub struct {
 	Name         string
-	Subscribers  map[string]*Subscription
+	Subscribers  map[string]*SubscriptionPubSub
 	mu           sync.RWMutex
-	MessageQueue chan *Message
+	MessageQueue chan *MessagePubSub
 	closed       int32
 	metrics      *TopicMetrics
 	sequence     atomic.Uint64
@@ -242,7 +242,7 @@ type PubSubStore interface {
 }
 
 // Config holds pub/sub configuration
-type Config struct {
+type ConfigPubSub struct {
 	Store                   PubSubStore
 	KeyPrefix               string
 	TTL                     time.Duration
@@ -255,23 +255,23 @@ type Config struct {
 	CircuitBreakerThreshold int64
 	CircuitBreakerTimeout   time.Duration
 	EnableDeadLetterQueue   bool
-	DeadLetterHandler       DeadLetterHandler
+	DeadLetterHandler       DeadLetterHandlerPubSub
 }
 
 // PubSub implements the main pub/sub system
 type PubSub struct {
-	publisher *Publisher
+	publisher *PublisherPubSub
 	store     PubSubStore
-	config    *Config
+	config    *ConfigPubSub
 	closed    int32
-	metrics   *PubSubMetrics
+	metrics   *PubSubMetricsPubSub
 	ctx       context.Context
 	cancel    context.CancelFunc
 	wg        sync.WaitGroup
 }
 
 // PubSubMetrics tracks overall system performance
-type PubSubMetrics struct {
+type PubSubMetricsPubSub struct {
 	TotalMessages      atomic.Uint64
 	TotalTopics        atomic.Uint64
 	TotalSubscriptions atomic.Uint64
@@ -283,22 +283,22 @@ type PubSubMetrics struct {
 var messageCounter uint64
 
 // NewPubSub creates a new production-ready pub/sub system
-func NewPubSub(config *Config) (*PubSub, error) {
-	if err := validateConfig(config); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidConfig, err)
+func NewPubSub(config *ConfigPubSub) (*PubSub, error) {
+	if err := validateConfigPubSub(config); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrInvalidConfigPubSub, err)
 	}
 
-	applyDefaults(config)
+	applyDefaultsPubSub(config)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	publisher := &Publisher{
-		topics:         make(map[string]*Topic),
+	publisher := &PublisherPubSub{
+		topics:         make(map[string]*TopicPubSub),
 		store:          config.Store,
 		maxRetries:     config.MaxRetryAttempts,
 		retryDelay:     config.RetryDelay,
 		metrics:        &PublisherMetrics{},
-		circuitBreaker: NewCircuitBreaker(config.CircuitBreakerThreshold, config.CircuitBreakerTimeout),
+		circuitBreaker: NewCircuitBreakerPubSub(config.CircuitBreakerThreshold, config.CircuitBreakerTimeout),
 		workerPool:     make(chan struct{}, config.MaxConcurrentOperations),
 	}
 
@@ -306,7 +306,7 @@ func NewPubSub(config *Config) (*PubSub, error) {
 		publisher: publisher,
 		store:     config.Store,
 		config:    config,
-		metrics:   &PubSubMetrics{},
+		metrics:   &PubSubMetricsPubSub{},
 		ctx:       ctx,
 		cancel:    cancel,
 	}
@@ -341,10 +341,10 @@ func (ps *PubSub) CreateTopic(ctx context.Context, name string) error {
 		return fmt.Errorf("topic %s already exists", name)
 	}
 
-	topic := &Topic{
+	topic := &TopicPubSub{
 		Name:         name,
-		Subscribers:  make(map[string]*Subscription),
-		MessageQueue: make(chan *Message, ps.config.BufferSize),
+		Subscribers:  make(map[string]*SubscriptionPubSub),
+		MessageQueue: make(chan *MessagePubSub, ps.config.BufferSize),
 		metrics:      &TopicMetrics{},
 	}
 
@@ -364,7 +364,7 @@ func (ps *PubSub) CreateTopic(ctx context.Context, name string) error {
 }
 
 // Subscribe creates a new subscription to a topic with comprehensive validation
-func (ps *PubSub) Subscribe(ctx context.Context, topicName, subscriptionID string, handler MessageHandler, filter *MessageFilter) (*Subscription, error) {
+func (ps *PubSub) Subscribe(ctx context.Context, topicName, subscriptionID string, handler MessageHandlerPubSub, filter *MessageFilter) (*SubscriptionPubSub, error) {
 	if atomic.LoadInt32(&ps.closed) == 1 {
 		return nil, errors.New("pub/sub system is closed")
 	}
@@ -391,7 +391,7 @@ func (ps *PubSub) Subscribe(ctx context.Context, topicName, subscriptionID strin
 	ps.publisher.mu.RUnlock()
 
 	if !exists {
-		return nil, fmt.Errorf("%w: %s", ErrTopicNotFound, topicName)
+		return nil, fmt.Errorf("%w: %s", ErrTopicNotFoundPubSub, topicName)
 	}
 
 	// Check subscriber limit
@@ -399,11 +399,11 @@ func (ps *PubSub) Subscribe(ctx context.Context, topicName, subscriptionID strin
 	subscriberCount := len(topic.Subscribers)
 	topic.mu.RUnlock()
 
-	if subscriberCount >= MaxSubscriberCount {
-		return nil, fmt.Errorf("%w: topic %s has reached maximum subscriber limit", ErrSubscriptionLimit, topicName)
+	if subscriberCount >= MaxSubscriberCountPubSub {
+		return nil, fmt.Errorf("%w: topic %s has reached maximum subscriber limit", ErrSubscriptionLimitPubSub, topicName)
 	}
 
-	subscription := &Subscription{
+	subscription := &SubscriptionPubSub{
 		ID:                subscriptionID,
 		Topic:             topicName,
 		Handler:           handler,
@@ -413,7 +413,7 @@ func (ps *PubSub) Subscribe(ctx context.Context, topicName, subscriptionID strin
 		BufferSize:        ps.config.BufferSize,
 		MaxRetries:        ps.config.MaxRetryAttempts,
 		RetryDelay:        ps.config.RetryDelay,
-		CircuitBreaker:    NewCircuitBreaker(ps.config.CircuitBreakerThreshold, ps.config.CircuitBreakerTimeout),
+		CircuitBreaker:    NewCircuitBreakerPubSub(ps.config.CircuitBreakerThreshold, ps.config.CircuitBreakerTimeout),
 		metrics:           &SubscriptionMetrics{},
 		workerPool:        make(chan struct{}, 10), // Limit concurrent message processing per subscription
 	}
@@ -439,7 +439,7 @@ func (ps *PubSub) Subscribe(ctx context.Context, topicName, subscriptionID strin
 // Publish publishes a message to a topic with comprehensive validation and circuit breaker
 func (ps *PubSub) Publish(ctx context.Context, topicName string, data []byte, headers map[string]string) error {
 	if atomic.LoadInt32(&ps.closed) == 1 {
-		return ErrPublisherClosed
+		return ErrPublisherClosedPubSub
 	}
 
 	if err := validateMessage(data); err != nil {
@@ -471,17 +471,17 @@ func (ps *PubSub) Publish(ctx context.Context, topicName string, data []byte, he
 }
 
 // PublishBatch publishes multiple messages with validation and batching
-func (ps *PubSub) PublishBatch(ctx context.Context, topicName string, messages []Message) error {
+func (ps *PubSub) PublishBatch(ctx context.Context, topicName string, messages []MessagePubSub) error {
 	if atomic.LoadInt32(&ps.closed) == 1 {
-		return ErrPublisherClosed
+		return ErrPublisherClosedPubSub
 	}
 
 	if len(messages) == 0 {
 		return errors.New("batch cannot be empty")
 	}
 
-	if len(messages) > MaxBatchSize {
-		return fmt.Errorf("%w: batch size %d exceeds limit %d", ErrBatchTooLarge, len(messages), MaxBatchSize)
+	if len(messages) > MaxBatchSizePubSub {
+		return fmt.Errorf("%w: batch size %d exceeds limit %d", ErrBatchTooLargePubSub, len(messages), MaxBatchSizePubSub)
 	}
 
 	if err := ctx.Err(); err != nil {
@@ -525,7 +525,7 @@ func (ps *PubSub) publishWithRetry(ctx context.Context, topicName string, data [
 	var lastErr error
 	for attempt := 0; attempt <= ps.publisher.maxRetries; attempt++ {
 		if err := ctx.Err(); err != nil {
-			return fmt.Errorf("%w: %v", ErrContextCancelled, err)
+			return fmt.Errorf("%w: %v", ErrContextCancelledPubSub, err)
 		}
 
 		if err := ps.publishMessage(ctx, topicName, data, headers); err != nil {
@@ -533,7 +533,7 @@ func (ps *PubSub) publishWithRetry(ctx context.Context, topicName string, data [
 			if attempt < ps.publisher.maxRetries {
 				select {
 				case <-ctx.Done():
-					return fmt.Errorf("%w: %v", ErrContextCancelled, ctx.Err())
+					return fmt.Errorf("%w: %v", ErrContextCancelledPubSub, ctx.Err())
 				case <-time.After(ps.publisher.retryDelay * time.Duration(attempt+1)):
 					continue
 				}
@@ -555,11 +555,11 @@ func (ps *PubSub) publishMessage(ctx context.Context, topicName string, data []b
 	case ps.publisher.workerPool <- struct{}{}:
 		defer func() { <-ps.publisher.workerPool }()
 	case <-ctx.Done():
-		return fmt.Errorf("%w: %v", ErrContextCancelled, ctx.Err())
+		return fmt.Errorf("%w: %v", ErrContextCancelledPubSub, ctx.Err())
 	case <-time.After(ps.config.OperationTimeout):
-		return fmt.Errorf("%w: timeout acquiring worker slot", ErrTimeout)
+		return fmt.Errorf("%w: timeout acquiring worker slot", ErrTimeoutPubSub)
 	default:
-		return fmt.Errorf("%w: too many concurrent operations", ErrConcurrencyLimit)
+		return fmt.Errorf("%w: too many concurrent operations", ErrConcurrencyLimitPubSub)
 	}
 
 	ps.publisher.mu.RLock()
@@ -567,14 +567,14 @@ func (ps *PubSub) publishMessage(ctx context.Context, topicName string, data []b
 	ps.publisher.mu.RUnlock()
 
 	if !exists {
-		return fmt.Errorf("%w: %s", ErrTopicNotFound, topicName)
+		return fmt.Errorf("%w: %s", ErrTopicNotFoundPubSub, topicName)
 	}
 
 	if atomic.LoadInt32(&topic.closed) == 1 {
-		return fmt.Errorf("%w: %s", ErrTopicClosed, topicName)
+		return fmt.Errorf("%w: %s", ErrTopicClosedPubSub, topicName)
 	}
 
-	message := &Message{
+	message := &MessagePubSub{
 		ID:        generateMessageID(),
 		Topic:     topicName,
 		Data:      data,
@@ -586,7 +586,7 @@ func (ps *PubSub) publishMessage(ctx context.Context, topicName string, data []b
 
 	// Store message if store is available
 	if ps.store != nil {
-		if err := ps.storeMessage(ctx, message); err != nil {
+		if err := ps.storeMessagePubSub(ctx, message); err != nil {
 			logx.Error("Failed to store message",
 				logx.ErrorField(err),
 				logx.String("message_id", message.ID))
@@ -602,7 +602,7 @@ func (ps *PubSub) publishMessage(ctx context.Context, topicName string, data []b
 		ps.metrics.TotalMessages.Add(1)
 		return nil
 	case <-ctx.Done():
-		return fmt.Errorf("%w: %v", ErrContextCancelled, ctx.Err())
+		return fmt.Errorf("%w: %v", ErrContextCancelledPubSub, ctx.Err())
 	default:
 		topic.metrics.QueueFullCount.Add(1)
 		return fmt.Errorf("topic %s message queue is full", topicName)
@@ -610,7 +610,7 @@ func (ps *PubSub) publishMessage(ctx context.Context, topicName string, data []b
 }
 
 // processTopicMessages processes messages for a topic with proper cleanup
-func (ps *PubSub) processTopicMessages(ctx context.Context, topic *Topic) {
+func (ps *PubSub) processTopicMessages(ctx context.Context, topic *TopicPubSub) {
 	defer func() {
 		if r := recover(); r != nil {
 			logx.Error("Panic recovered in topic message processor",
@@ -640,9 +640,9 @@ func (ps *PubSub) processTopicMessages(ctx context.Context, topic *Topic) {
 }
 
 // deliverMessageToSubscribers delivers a message to all subscribers with proper concurrency control
-func (ps *PubSub) deliverMessageToSubscribers(ctx context.Context, topic *Topic, message *Message) {
+func (ps *PubSub) deliverMessageToSubscribers(ctx context.Context, topic *TopicPubSub, message *MessagePubSub) {
 	topic.mu.RLock()
-	subscribers := make([]*Subscription, 0, len(topic.Subscribers))
+	subscribers := make([]*SubscriptionPubSub, 0, len(topic.Subscribers))
 	for _, sub := range topic.Subscribers {
 		subscribers = append(subscribers, sub)
 	}
@@ -666,7 +666,7 @@ func (ps *PubSub) deliverMessageToSubscribers(ctx context.Context, topic *Topic,
 
 		// Deliver message to subscriber with concurrency control
 		wg.Add(1)
-		go func(sub *Subscription) {
+		go func(sub *SubscriptionPubSub) {
 			defer wg.Done()
 			ps.deliverMessageToSubscriber(ctx, sub, message)
 		}(subscription)
@@ -690,7 +690,7 @@ func (ps *PubSub) deliverMessageToSubscribers(ctx context.Context, topic *Topic,
 }
 
 // deliverMessageToSubscriber delivers a message to a single subscriber with comprehensive error handling
-func (ps *PubSub) deliverMessageToSubscriber(ctx context.Context, subscription *Subscription, message *Message) {
+func (ps *PubSub) deliverMessageToSubscriber(ctx context.Context, subscription *SubscriptionPubSub, message *MessagePubSub) {
 	// Acquire worker pool slot (non-blocking)
 	select {
 	case subscription.workerPool <- struct{}{}:
@@ -730,14 +730,14 @@ func (ps *PubSub) deliverMessageToSubscriber(ctx context.Context, subscription *
 		// Categorize errors for better metrics
 		if errors.Is(err, ErrCircuitBreakerOpen) {
 			subscription.metrics.CircuitBreakerTrips.Add(1)
-		} else if errors.Is(err, ErrTimeout) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		} else if errors.Is(err, ErrTimeoutPubSub) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 			// Record timeout errors specifically
 			subscription.metrics.TimeoutErrors.Add(1)
 			logx.Warn("Message handler timeout",
 				logx.String("subscription", subscription.ID),
 				logx.String("message_id", message.ID),
 				logx.String("timeout", ps.config.OperationTimeout.String()))
-		} else if errors.Is(err, ErrPanicRecovered) {
+		} else if errors.Is(err, ErrPanicRecoveredPubSub) {
 			// Panic errors are already recorded above
 		} else {
 			// Record other errors
@@ -763,13 +763,13 @@ func (ps *PubSub) deliverMessageToSubscriber(ctx context.Context, subscription *
 }
 
 // deliverWithRetry delivers a message with retry logic and panic recovery
-func (ps *PubSub) deliverWithRetry(ctx context.Context, subscription *Subscription, message *Message) error {
+func (ps *PubSub) deliverWithRetry(ctx context.Context, subscription *SubscriptionPubSub, message *MessagePubSub) error {
 	var lastErr error
 	for attempt := 0; attempt <= subscription.MaxRetries; attempt++ {
 		// Set the retry count for this attempt
 		message.RetryCount = attempt
 		if err := ctx.Err(); err != nil {
-			return fmt.Errorf("%w: %v", ErrContextCancelled, err)
+			return fmt.Errorf("%w: %v", ErrContextCancelledPubSub, err)
 		}
 
 		// Create timeout context for handler execution
@@ -780,7 +780,7 @@ func (ps *PubSub) deliverWithRetry(ctx context.Context, subscription *Subscripti
 		err := func() (err error) {
 			defer func() {
 				if r := recover(); r != nil {
-					err = fmt.Errorf("%w: %v", ErrPanicRecovered, r)
+					err = fmt.Errorf("%w: %v", ErrPanicRecoveredPubSub, r)
 					subscription.metrics.PanicRecoveries.Add(1)
 					ps.metrics.PanicRecoveries.Add(1)
 					logx.Error("Panic recovered in message handler",
@@ -795,7 +795,7 @@ func (ps *PubSub) deliverWithRetry(ctx context.Context, subscription *Subscripti
 			go func() {
 				defer func() {
 					if r := recover(); r != nil {
-						done <- fmt.Errorf("%w: %v", ErrPanicRecovered, r)
+						done <- fmt.Errorf("%w: %v", ErrPanicRecoveredPubSub, r)
 					}
 				}()
 				done <- subscription.Handler(handlerCtx, message)
@@ -805,7 +805,7 @@ func (ps *PubSub) deliverWithRetry(ctx context.Context, subscription *Subscripti
 			case err := <-done:
 				return err
 			case <-handlerCtx.Done():
-				return fmt.Errorf("%w: handler timeout", ErrTimeout)
+				return fmt.Errorf("%w: handler timeout", ErrTimeoutPubSub)
 			}
 		}()
 
@@ -813,7 +813,7 @@ func (ps *PubSub) deliverWithRetry(ctx context.Context, subscription *Subscripti
 			lastErr = err
 
 			// Don't retry timeout errors or context cancellation
-			if errors.Is(err, ErrTimeout) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+			if errors.Is(err, ErrTimeoutPubSub) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 				return err
 			}
 
@@ -821,7 +821,7 @@ func (ps *PubSub) deliverWithRetry(ctx context.Context, subscription *Subscripti
 			if attempt < subscription.MaxRetries {
 				select {
 				case <-ctx.Done():
-					return fmt.Errorf("%w: %v", ErrContextCancelled, ctx.Err())
+					return fmt.Errorf("%w: %v", ErrContextCancelledPubSub, ctx.Err())
 				case <-time.After(subscription.RetryDelay * time.Duration(attempt+1)):
 					continue
 				}
@@ -835,7 +835,7 @@ func (ps *PubSub) deliverWithRetry(ctx context.Context, subscription *Subscripti
 }
 
 // storeMessage stores a message in the persistent store
-func (ps *PubSub) storeMessage(ctx context.Context, message *Message) error {
+func (ps *PubSub) storeMessagePubSub(ctx context.Context, message *MessagePubSub) error {
 	if ps.store == nil {
 		return ErrStoreUnavailable
 	}
@@ -850,7 +850,7 @@ func (ps *PubSub) storeMessage(ctx context.Context, message *Message) error {
 }
 
 // matchesFilter checks if a message matches the subscription filter with regex support
-func (s *Subscription) matchesFilter(message *Message) bool {
+func (s *SubscriptionPubSub) matchesFilter(message *MessagePubSub) bool {
 	if s.Filter.Headers != nil {
 		for key, value := range s.Filter.Headers {
 			if msgValue, exists := message.Headers[key]; !exists || msgValue != value {
@@ -888,7 +888,7 @@ func (ps *PubSub) Close(ctx context.Context) error {
 
 	// Close all topics with proper ordering to avoid deadlocks
 	ps.publisher.mu.Lock()
-	topics := make([]*Topic, 0, len(ps.publisher.topics))
+	topics := make([]*TopicPubSub, 0, len(ps.publisher.topics))
 	for _, topic := range ps.publisher.topics {
 		topics = append(topics, topic)
 	}
@@ -993,7 +993,7 @@ func (ps *PubSub) GetStats() map[string]interface{} {
 }
 
 // Validation functions with comprehensive checks
-func validateConfig(config *Config) error {
+func validateConfigPubSub(config *ConfigPubSub) error {
 	if config == nil {
 		return errors.New("config cannot be nil")
 	}
@@ -1030,8 +1030,8 @@ func validateTopicName(name string) error {
 		return errors.New("topic name cannot be empty")
 	}
 
-	if len(name) > MaxTopicNameLength {
-		return fmt.Errorf("topic name length %d exceeds maximum %d", len(name), MaxTopicNameLength)
+	if len(name) > MaxTopicNameLengthPubSub {
+		return fmt.Errorf("topic name length %d exceeds maximum %d", len(name), MaxTopicNameLengthPubSub)
 	}
 
 	// Check for invalid characters
@@ -1049,8 +1049,8 @@ func validateSubscriptionID(id string) error {
 		return errors.New("subscription ID cannot be empty")
 	}
 
-	if len(id) > MaxTopicNameLength {
-		return fmt.Errorf("subscription ID length %d exceeds maximum %d", len(id), MaxTopicNameLength)
+	if len(id) > MaxTopicNameLengthPubSub {
+		return fmt.Errorf("subscription ID length %d exceeds maximum %d", len(id), MaxTopicNameLengthPubSub)
 	}
 
 	// Check for invalid characters
@@ -1068,8 +1068,8 @@ func validateMessage(data []byte) error {
 		return errors.New("message data cannot be empty")
 	}
 
-	if len(data) > MaxMessageSize {
-		return fmt.Errorf("message size %d exceeds maximum %d", len(data), MaxMessageSize)
+	if len(data) > MaxMessageSizePubSub {
+		return fmt.Errorf("message size %d exceeds maximum %d", len(data), MaxMessageSizePubSub)
 	}
 
 	return nil
@@ -1080,17 +1080,17 @@ func validateHeaders(headers map[string]string) error {
 		return nil
 	}
 
-	if len(headers) > MaxHeadersCount {
-		return fmt.Errorf("headers count %d exceeds maximum %d", len(headers), MaxHeadersCount)
+	if len(headers) > MaxHeadersCountPubSub {
+		return fmt.Errorf("headers count %d exceeds maximum %d", len(headers), MaxHeadersCountPubSub)
 	}
 
 	for key, value := range headers {
-		if len(key) > MaxHeaderKeyLength {
-			return fmt.Errorf("header key length %d exceeds maximum %d", len(key), MaxHeaderKeyLength)
+		if len(key) > MaxHeaderKeyLengthPubSub {
+			return fmt.Errorf("header key length %d exceeds maximum %d", len(key), MaxHeaderKeyLengthPubSub)
 		}
 
-		if len(value) > MaxHeaderValueLength {
-			return fmt.Errorf("header value length %d exceeds maximum %d", len(value), MaxHeaderValueLength)
+		if len(value) > MaxHeaderValueLengthPubSub {
+			return fmt.Errorf("header value length %d exceeds maximum %d", len(value), MaxHeaderValueLengthPubSub)
 		}
 
 		// Check for invalid characters in key
@@ -1104,41 +1104,41 @@ func validateHeaders(headers map[string]string) error {
 	return nil
 }
 
-func applyDefaults(config *Config) {
+func applyDefaultsPubSub(config *ConfigPubSub) {
 	if config.KeyPrefix == "" {
-		config.KeyPrefix = DefaultKeyPrefix
+		config.KeyPrefix = DefaultKeyPrefixPubSub
 	}
 
 	if config.TTL == 0 {
-		config.TTL = DefaultTTL
+		config.TTL = DefaultTTLPubSub
 	}
 
 	if config.BufferSize == 0 {
-		config.BufferSize = DefaultBufferSize
+		config.BufferSize = DefaultBufferSizePubSub
 	}
 
 	if config.MaxRetryAttempts == 0 {
-		config.MaxRetryAttempts = MaxRetryAttempts
+		config.MaxRetryAttempts = MaxRetryAttemptsPubSub
 	}
 
 	if config.RetryDelay == 0 {
-		config.RetryDelay = RetryDelay
+		config.RetryDelay = RetryDelayPubSub
 	}
 
 	if config.MaxConcurrentOperations == 0 {
-		config.MaxConcurrentOperations = MaxConcurrentOperations
+		config.MaxConcurrentOperations = MaxConcurrentOperationsPubSub
 	}
 
 	if config.OperationTimeout == 0 {
-		config.OperationTimeout = DefaultOperationTimeout
+		config.OperationTimeout = DefaultOperationTimeoutPubSub
 	}
 
 	if config.CircuitBreakerThreshold == 0 {
-		config.CircuitBreakerThreshold = DefaultCircuitBreakerThreshold
+		config.CircuitBreakerThreshold = DefaultCircuitBreakerThresholdPubSub
 	}
 
 	if config.CircuitBreakerTimeout == 0 {
-		config.CircuitBreakerTimeout = DefaultCircuitBreakerTimeout
+		config.CircuitBreakerTimeout = DefaultCircuitBreakerTimeoutPubSub
 	}
 }
 
@@ -1147,26 +1147,26 @@ func generateMessageID() string {
 }
 
 // DefaultConfig returns a default pub/sub configuration
-func DefaultConfig(store PubSubStore) *Config {
-	return &Config{
+func DefaultConfigPubSub(store PubSubStore) *ConfigPubSub {
+	return &ConfigPubSub{
 		Store:                   store,
-		KeyPrefix:               DefaultKeyPrefix,
-		TTL:                     DefaultTTL,
-		BufferSize:              DefaultBufferSize,
-		MaxRetryAttempts:        MaxRetryAttempts,
-		RetryDelay:              RetryDelay,
+		KeyPrefix:               DefaultKeyPrefixPubSub,
+		TTL:                     DefaultTTLPubSub,
+		BufferSize:              DefaultBufferSizePubSub,
+		MaxRetryAttempts:        MaxRetryAttemptsPubSub,
+		RetryDelay:              RetryDelayPubSub,
 		EnableMetrics:           true,
-		MaxConcurrentOperations: MaxConcurrentOperations,
-		OperationTimeout:        DefaultOperationTimeout,
-		CircuitBreakerThreshold: DefaultCircuitBreakerThreshold,
-		CircuitBreakerTimeout:   DefaultCircuitBreakerTimeout,
+		MaxConcurrentOperations: MaxConcurrentOperationsPubSub,
+		OperationTimeout:        DefaultOperationTimeoutPubSub,
+		CircuitBreakerThreshold: DefaultCircuitBreakerThresholdPubSub,
+		CircuitBreakerTimeout:   DefaultCircuitBreakerTimeoutPubSub,
 		EnableDeadLetterQueue:   false,
 	}
 }
 
 // HighReliabilityConfig returns a high-reliability configuration
-func HighReliabilityConfig(store PubSubStore) *Config {
-	config := DefaultConfig(store)
+func HighReliabilityConfigPubSub(store PubSubStore) *ConfigPubSub {
+	config := DefaultConfigPubSub(store)
 	config.BufferSize = 50000
 	config.MaxRetryAttempts = 5
 	config.RetryDelay = 200 * time.Millisecond

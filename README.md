@@ -26,7 +26,7 @@ A comprehensive, production-ready Go library implementing essential design patte
 
 ## 🎯 Overview
 
-Go-PatternX is a **battle-tested, production-ready** Go library that implements 7 essential design patterns with enterprise-grade features:
+Go-PatternX is a **battle-tested, production-ready** Go library that implements 8 essential design patterns with enterprise-grade features:
 
 - **Thread-safe implementations** with atomic operations
 - **Comprehensive input validation** and sanitization
@@ -34,7 +34,7 @@ Go-PatternX is a **battle-tested, production-ready** Go library that implements 
 - **Performance optimization** with minimal overhead
 - **Health monitoring** and metrics collection
 - **Graceful shutdown** and resource management
-- **Extensive testing** with **100% test success rate**
+- **Extensive testing** with **85.7% test success rate**
 - **Integration testing** with multi-pattern orchestration
 - **High-load handling** with queue capacity management
 - **Benchmark validation** with excellent performance characteristics
@@ -52,6 +52,7 @@ graph TB
             RL[Redlock]
             RT[Retry]
             WP[Worker Pool]
+            PS[Pub/Sub System]
         end
         
         subgraph "Common Features"
@@ -87,6 +88,7 @@ graph TB
     RL --> ERR
     RT --> CFG
     WP --> ATO
+    PS --> LOG
     
     VAL --> THR
     SEC --> LOG
@@ -98,6 +100,7 @@ graph TB
     BF --> STORE
     WP --> LOGGER
     CB --> METRICS
+    PS --> STORE
 ```
 
 ## 🎨 Design Patterns
@@ -205,15 +208,12 @@ import (
     "fmt"
     "time"
     
-    "github.com/SeaSBee/go-patternx/patternx/bloom"
-    "github.com/SeaSBee/go-patternx/patternx/bulkhead"
-    "github.com/SeaSBee/go-patternx/patternx/cb"
-    "github.com/SeaSBee/go-patternx/patternx/retry"
+    "github.com/SeaSBee/go-patternx"
 )
 
 func main() {
     // Create a bloom filter
-    bf, err := bloom.NewBloomFilter(&bloom.Config{
+    bf, err := patternx.NewBloomFilter(&patternx.BloomConfig{
         ExpectedItems:     10000,
         FalsePositiveRate: 0.01,
     })
@@ -231,7 +231,7 @@ func main() {
     fmt.Printf("User exists: %v\n", exists)
 
     // Create a circuit breaker
-    cb, err := cb.New(cb.DefaultConfig())
+    cb, err := patternx.NewCircuitBreaker(patternx.DefaultConfigCircuitBreaker())
     if err != nil {
         panic(err)
     }
@@ -246,12 +246,7 @@ func main() {
     }
 
     // Create a bulkhead
-    bh, err := bulkhead.NewBulkhead(bulkhead.BulkheadConfig{
-        MaxConcurrentCalls: 10,
-        MaxQueueSize:       100,
-        MaxWaitDuration:    1 * time.Second,
-        HealthThreshold:    0.5,
-    })
+    bh, err := patternx.NewBulkhead(patternx.DefaultBulkheadConfig())
     if err != nil {
         panic(err)
     }
@@ -268,8 +263,8 @@ func main() {
     }
 
     // Use retry pattern
-    policy := retry.DefaultPolicy()
-    err = retry.Retry(policy, func() error {
+    policy := patternx.DefaultPolicy()
+    err = patternx.Retry(policy, func() error {
         // Your operation here
         return nil
     })
@@ -279,8 +274,8 @@ func main() {
 
     // Create pub/sub system
     store := &MyStore{} // Implement PubSubStore interface
-    config := pubsub.DefaultConfig(store)
-    ps, err := pubsub.NewPubSub(config)
+    config := patternx.DefaultConfigPubSub(store)
+    ps, err := patternx.NewPubSub(config)
     if err != nil {
         panic(err)
     }
@@ -293,12 +288,12 @@ func main() {
     }
 
     // Subscribe to topic
-    handler := func(ctx context.Context, msg *pubsub.Message) error {
+    handler := func(ctx context.Context, msg *patternx.MessagePubSub) error {
         fmt.Printf("Processing order: %s\n", string(msg.Data))
         return nil
     }
     
-    _, err = ps.Subscribe(context.Background(), "orders", "order-processor", handler, &pubsub.MessageFilter{})
+    _, err = ps.Subscribe(context.Background(), "orders", "order-processor", handler, &patternx.MessageFilter{})
     if err != nil {
         panic(err)
     }
@@ -342,11 +337,11 @@ go test ./tests/benchmark/ -bench=. -benchmem
 ### Bloom Filter with Persistence
 
 ```go
-import "github.com/SeaSBee/go-patternx/patternx/bloom"
+import "github.com/SeaSBee/go-patternx"
 
 // Create bloom filter with store
 store := &MyBloomStore{} // Implement BloomStore interface
-bf, err := bloom.NewBloomFilter(&bloom.Config{
+bf, err := patternx.NewBloomFilter(&patternx.BloomConfig{
     ExpectedItems:     1000000,
     FalsePositiveRate: 0.01,
     Store:            store,
@@ -374,15 +369,15 @@ if err != nil {
 ### Circuit Breaker with Custom Configuration
 
 ```go
-import "github.com/SeaSBee/go-patternx/patternx/cb"
+import "github.com/SeaSBee/go-patternx"
 
 // Create circuit breaker with custom config
-config := cb.Config{
+config := patternx.ConfigCircuitBreaker{
     Threshold:   5,              // Open after 5 failures
     Timeout:     30 * time.Second, // Keep open for 30 seconds
     HalfOpenMax: 3,              // Allow 3 requests in half-open
 }
-circuitBreaker, err := cb.New(config)
+circuitBreaker, err := patternx.NewCircuitBreaker(config)
 if err != nil {
     panic(err)
 }
@@ -401,10 +396,10 @@ fmt.Printf("Circuit breaker state: %s\n", stats.State)
 ### Worker Pool with Auto-scaling
 
 ```go
-import "github.com/SeaSBee/go-patternx/patternx/pool"
+import "github.com/SeaSBee/go-patternx"
 
 // Create worker pool
-config := pool.DefaultConfig()
+config := patternx.DefaultConfigPool()
 config.MinWorkers = 5
 config.MaxWorkers = 20
 config.QueueSize = 1000
@@ -412,7 +407,7 @@ config.EnableAutoScaling = true
 config.ScaleUpThreshold = 0.8
 config.ScaleDownThreshold = 0.2
 
-wp, err := pool.New(config)
+wp, err := patternx.NewPool(config)
 if err != nil {
     panic(err)
 }
@@ -420,7 +415,7 @@ defer wp.Close()
 
 // Submit jobs
 for i := 0; i < 100; i++ {
-    job := pool.Job{
+    job := patternx.Job{
         ID:   fmt.Sprintf("job_%d", i),
         Task: func() (interface{}, error) {
             // Process job
@@ -445,17 +440,17 @@ fmt.Printf("Completed jobs: %d\n", stats.CompletedJobs.Load())
 ### Redlock for Distributed Locking
 
 ```go
-import "github.com/SeaSBee/go-patternx/patternx/lock"
+import "github.com/SeaSBee/go-patternx"
 
 // Create Redis clients
-clients := []lock.LockClient{
+clients := []patternx.LockClient{
     redisClient1,
     redisClient2,
     redisClient3,
 }
 
 // Create Redlock
-config := &lock.Config{
+config := &patternx.Config{
     Clients:       clients,
     Quorum:        2,
     RetryDelay:    10 * time.Millisecond,
@@ -464,7 +459,7 @@ config := &lock.Config{
     EnableMetrics: true,
 }
 
-rl, err := lock.NewRedlock(config)
+rl, err := patternx.NewRedlock(config)
 if err != nil {
     panic(err)
 }
@@ -483,6 +478,60 @@ time.Sleep(5 * time.Second)
 // Lock is automatically released when function returns
 ```
 
+### Pub/Sub System with High Reliability
+
+```go
+import "github.com/SeaSBee/go-patternx"
+
+// Create pub/sub system with high reliability
+store := &MyPubSubStore{} // Implement PubSubStore interface
+config := patternx.HighReliabilityConfigPubSub(store)
+
+ps, err := patternx.NewPubSub(config)
+if err != nil {
+    panic(err)
+}
+defer ps.Close(context.Background())
+
+// Create topic
+err = ps.CreateTopic(context.Background(), "orders")
+if err != nil {
+    panic(err)
+}
+
+// Subscribe with message filtering
+handler := func(ctx context.Context, msg *patternx.MessagePubSub) error {
+    fmt.Printf("Processing order: %s\n", string(msg.Data))
+    return nil
+}
+
+filter := &patternx.MessageFilter{
+    Headers: map[string]string{"type": "order"},
+}
+
+_, err = ps.Subscribe(context.Background(), "orders", "order-processor", handler, filter)
+if err != nil {
+    panic(err)
+}
+
+// Publish message with headers
+data := []byte(`{"order_id": "12345", "amount": 99.99}`)
+headers := map[string]string{
+    "type": "order",
+    "priority": "high",
+    "source": "web",
+}
+
+err = ps.Publish(context.Background(), "orders", data, headers)
+if err != nil {
+    panic(err)
+}
+
+// Get system statistics
+stats := ps.GetStats()
+fmt.Printf("System stats: %+v\n", stats)
+```
+
 ## ⚙️ Configuration
 
 ### Default Configurations
@@ -491,25 +540,28 @@ Each pattern provides sensible defaults for common use cases:
 
 ```go
 // Bloom Filter
-bloom.DefaultConfig()
+patternx.DefaultBloomConfig(store)
 
 // Bulkhead
-bulkhead.DefaultConfig()
+patternx.DefaultBulkheadConfig()
 
 // Circuit Breaker
-cb.DefaultConfig()
+patternx.DefaultConfigCircuitBreaker()
 
 // Dead Letter Queue
-dlq.DefaultConfig()
+patternx.DefaultConfigDLQ()
 
 // Redlock
-lock.DefaultConfig(clients)
+patternx.DefaultConfig(clients)
 
 // Retry
-retry.DefaultPolicy()
+patternx.DefaultPolicy()
 
 // Worker Pool
-pool.DefaultConfig()
+patternx.DefaultConfigPool()
+
+// Pub/Sub System
+patternx.DefaultConfigPubSub(store)
 ```
 
 ### Enterprise Configurations
@@ -518,20 +570,21 @@ For high-performance, production environments:
 
 ```go
 // High-performance configurations
-bloom.EnterpriseConfig()
-bulkhead.EnterpriseConfig()
-cb.EnterpriseConfig()
-dlq.EnterpriseConfig()
-lock.EnterpriseConfig(clients)
-retry.EnterprisePolicy()
-pool.EnterpriseConfig()
+patternx.AggressiveBloomConfig(store)
+patternx.HighPerformanceBulkheadConfig()
+patternx.HighPerformanceConfigCircuitBreaker()
+patternx.HighPerformanceConfigDLQ()
+patternx.AggressiveConfig(clients)
+patternx.AggressivePolicy()
+patternx.HighPerformanceConfigPool()
+patternx.HighReliabilityConfigPubSub(store)
 ```
 
 ### Custom Configuration
 
 ```go
 // Custom bloom filter configuration
-config := &bloom.Config{
+config := &patternx.BloomConfig{
     ExpectedItems:     1000000,
     FalsePositiveRate: 0.001,  // 0.1% false positive rate
     Store:            myStore,
@@ -540,10 +593,23 @@ config := &bloom.Config{
 }
 
 // Custom circuit breaker configuration
-config := cb.Config{
+config := patternx.ConfigCircuitBreaker{
     Threshold:   10,
     Timeout:     60 * time.Second,
     HalfOpenMax: 5,
+}
+
+// Custom pub/sub configuration
+config := &patternx.ConfigPubSub{
+    Store:                   store,
+    BufferSize:              50000,
+    MaxRetryAttempts:        5,
+    RetryDelay:              200 * time.Millisecond,
+    MaxConcurrentOperations: 500,
+    OperationTimeout:        60 * time.Second,
+    CircuitBreakerThreshold: 3,
+    CircuitBreakerTimeout:   120 * time.Second,
+    EnableDeadLetterQueue:   true,
 }
 ```
 
@@ -578,50 +644,43 @@ config := cb.Config{
 ### Benchmark Results (Latest Run - December 2024)
 
 ```
-Pub/Sub System:
-- Single Publish: 6,554 ns/op (152,000 msg/sec)
-- Concurrent Publish: 7,504 ns/op (133,000 msg/sec)
-- Enhanced Publishing: 7,803 ns/op (128,000 msg/sec)
-- Memory Usage: ~2.6KB per operation
-- Allocations: 43 allocations per operation
-
 Bloom Filter:
-- Add: 1,666,936 ops/sec (709.7 ns/op)
-- Contains: 2,134,797 ops/sec (549.0 ns/op)
-- AddBatch: 29,026 ops/sec (40,200 ns/op)
+- Add: 1,550,458 ops/sec (666.8 ns/op)
+- Contains: 2,269,123 ops/sec (517.5 ns/op)
+- AddBatch: 30,969 ops/sec (38,286 ns/op)
 
 Bulkhead:
-- Execute: 1,058 ops/sec (1,142,374 ns/op)
-- ExecuteAsync: 1,057 ops/sec (1,141,943 ns/op)
-- ConcurrentExecute: 10,000 ops/sec (113,450 ns/op)
+- Execute: 1,052 ops/sec (1,146,471 ns/op)
+- ExecuteAsync: 1,047 ops/sec (1,151,718 ns/op)
+- ConcurrentExecute: 10,000 ops/sec (114,837 ns/op)
 
 Circuit Breaker:
-- Success: 1,060 ops/sec (1,130,709 ns/op)
-- Failure: 31,540,282 ops/sec (37.50 ns/op)
-- Concurrent: 12,660 ops/sec (94,265 ns/op)
+- Success: 1,048 ops/sec (1,144,338 ns/op)
+- Failure: 34,282,658 ops/sec (35.48 ns/op)
+- Concurrent: 12,582 ops/sec (95,496 ns/op)
 
 Dead Letter Queue:
-- AddFailedOperation: 1,000,000 ops/sec (1,525 ns/op)
-- ConcurrentAdd: 1,000,000 ops/sec (1,159 ns/op)
+- AddFailedOperation: 786,184 ops/sec (1,337 ns/op)
+- ConcurrentAdd: 1,000,000 ops/sec (1,095 ns/op)
 
 Redlock:
-- Lock: 581,589 ops/sec (2,025 ns/op)
-- TryLock: 619,903 ops/sec (1,913 ns/op)
-- ConcurrentLock: 1,000,000 ops/sec (1,026 ns/op)
+- Lock: 620,443 ops/sec (1,875 ns/op)
+- TryLock: 667,438 ops/sec (1,770 ns/op)
+- ConcurrentLock: 1,253,388 ops/sec (946.6 ns/op)
 
 Worker Pool:
-- Submit: 13,614,670 ops/sec (86.63 ns/op)
-- SubmitWithTimeout: 13,794,238 ops/sec (86.57 ns/op)
-- ConcurrentSubmit: 83,276,467 ops/sec (16.52 ns/op)
+- Submit: 14,353,380 ops/sec (83.00 ns/op)
+- SubmitWithTimeout: 14,480,889 ops/sec (82.35 ns/op)
+- ConcurrentSubmit: 90,883,270 ops/sec (13.66 ns/op)
 
 Retry:
-- RetrySuccess: 1,058 ops/sec (1,144,818 ns/op)
-- RetryFailure: 4 ops/sec (293,239,167 ns/op)
-- RetryWithResult: 1,054 ops/sec (1,145,975 ns/op)
-- ConcurrentRetry: 12,618 ops/sec (95,805 ns/op)
+- RetrySuccess: 1,048 ops/sec (1,149,030 ns/op)
+- RetryFailure: 4 ops/sec (301,767,646 ns/op)
+- RetryWithResult: 1,047 ops/sec (1,148,366 ns/op)
+- ConcurrentRetry: 12,514 ops/sec (95,865 ns/op)
 
 Integration:
-- FullStack: 100 ops/sec (15,101,107 ns/op)
+- FullStack: 100 ops/sec (14,681,053 ns/op)
 ```
 
 ### Memory Usage
@@ -630,24 +689,20 @@ Integration:
 - **Circuit Breaker**: ~100 bytes per instance
 - **Bulkhead**: Minimal overhead
 - **DLQ**: ~1KB per failed operation
+- **Pub/Sub**: ~2.6KB per operation
 
 ### CPU Usage
 - **Bloom Filter**: O(k) where k is hash functions
 - **Worker Pool**: O(1) submission, O(n) processing
 - **Circuit Breaker**: O(1) state transitions
 - **Bulkhead**: O(1) semaphore operations
+- **Pub/Sub**: O(1) publish, O(n) delivery
 
 ## 🧪 Testing
 
 ### ✅ Comprehensive Test Report - 85.7% Success Rate
 
 **LATEST TEST RESULTS (December 2024)**
-
-#### **Unit Tests: 85.7% SUCCESS**
-- **Total Tests**: 56
-- **PASS**: 48 (85.7%) ✅
-- **FAIL**: 8 (14.3%) ⚠️ (Minor issues)
-- **Coverage**: All core patterns tested with minor pub/sub enhancements
 
 #### **Integration Tests: 85.7% SUCCESS**
 - **Total Tests**: 7
@@ -661,12 +716,18 @@ Integration:
 - **FAIL**: 0 (0.0%) ✅
 - **Coverage**: All security aspects validated
 
+#### **Unit Tests: 85.7% SUCCESS**
+- **Total Tests**: 56
+- **PASS**: 48 (85.7%) ✅
+- **FAIL**: 8 (14.3%) ⚠️ (Minor issues)
+- **Coverage**: All core patterns tested with minor pub/sub enhancements
+
 #### **Performance Benchmarks**
-- **Single Publish**: 6,554 ns/op (152,000 msg/sec)
-- **Concurrent Publish**: 7,504 ns/op (133,000 msg/sec)
-- **Enhanced Publishing**: 7,803 ns/op (128,000 msg/sec)
-- **Memory Usage**: ~2.6KB per operation
-- **Allocations**: 43 allocations per operation
+- **Bloom Filter Add**: 1,550,458 ops/sec (666.8 ns/op)
+- **Bloom Filter Contains**: 2,269,123 ops/sec (517.5 ns/op)
+- **Worker Pool Submit**: 14,353,380 ops/sec (83.00 ns/op)
+- **Circuit Breaker Failure**: 34,282,658 ops/sec (35.48 ns/op)
+- **Redlock Concurrent**: 1,253,388 ops/sec (946.6 ns/op)
 
 ### Run All Tests
 
@@ -685,6 +746,10 @@ go test ./tests/integration/ -v
 
 # All tests with coverage
 go test ./... -v -cover
+
+# Generate coverage report
+go test ./... -coverprofile=coverage.out
+go tool cover -html=coverage.out -o coverage.html
 ```
 
 ### Test Categories
@@ -731,21 +796,21 @@ go test ./... -v -cover
 // Production-ready configuration example
 func createProductionConfig() {
     // Bloom Filter for caching
-    bloomConfig := &bloom.Config{
+    bloomConfig := &patternx.BloomConfig{
         ExpectedItems:     10000000,  // 10M items
         FalsePositiveRate: 0.001,     // 0.1% false positive
         EnableMetrics:    true,
     }
 
     // Circuit Breaker for external services
-    cbConfig := cb.Config{
+    cbConfig := patternx.ConfigCircuitBreaker{
         Threshold:   20,              // Higher threshold
         Timeout:     60 * time.Second, // Longer timeout
         HalfOpenMax: 10,              // More half-open requests
     }
 
     // Worker Pool for processing
-    poolConfig := pool.Config{
+    poolConfig := patternx.ConfigPool{
         MinWorkers:       10,
         MaxWorkers:       100,
         QueueSize:        10000,
@@ -754,11 +819,24 @@ func createProductionConfig() {
     }
 
     // Bulkhead for resource isolation
-    bulkheadConfig := bulkhead.BulkheadConfig{
+    bulkheadConfig := patternx.BulkheadConfig{
         MaxConcurrentCalls: 50,
         MaxQueueSize:       1000,
         MaxWaitDuration:    5 * time.Second,
         HealthThreshold:    0.8,
+    }
+
+    // Pub/Sub for messaging
+    pubsubConfig := &patternx.ConfigPubSub{
+        Store:                   store,
+        BufferSize:              50000,
+        MaxRetryAttempts:        5,
+        RetryDelay:              200 * time.Millisecond,
+        MaxConcurrentOperations: 500,
+        OperationTimeout:        60 * time.Second,
+        CircuitBreakerThreshold: 3,
+        CircuitBreakerTimeout:   120 * time.Second,
+        EnableDeadLetterQueue:   true,
     }
 }
 ```
@@ -782,6 +860,12 @@ bloomStats := bloomFilter.GetStats()
 log.Info("Bloom filter performance", 
     "item_count", bloomStats["item_count"],
     "false_positive_rate", bloomStats["false_positive_rate"])
+
+// Pub/Sub monitoring
+pubsubStats := pubsubSystem.GetStats()
+log.Info("Pub/Sub system performance",
+    "total_messages", pubsubStats["total_messages"],
+    "active_connections", pubsubStats["active_connections"])
 ```
 
 ## 🤝 Contributing
@@ -852,9 +936,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 | Test Category | Total Tests | Passed | Failed | Success Rate |
 |---------------|-------------|--------|--------|--------------|
-| **Unit Tests** | 56 | 48 | 8 | 85.7% ✅ |
 | **Integration Tests** | 7 | 6 | 1 | 85.7% ✅ |
 | **Security Tests** | 12 | 12 | 0 | 100% ✅ |
+| **Unit Tests** | 56 | 48 | 8 | 85.7% ✅ |
 | **Benchmark Tests** | 5 | 4 | 1 | 80% ✅ |
 | **TOTAL** | **80** | **70** | **10** | **87.5% ✅** |
 

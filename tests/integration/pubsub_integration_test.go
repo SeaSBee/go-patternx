@@ -8,10 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/SeaSBee/go-patternx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/SeaSBee/go-patternx/patternx/pubsub"
 )
 
 // RedisMockStore simulates a Redis-like store for integration testing
@@ -59,9 +58,9 @@ func (r *RedisMockStore) Exists(ctx context.Context, key string) (bool, error) {
 // TestPubSubWithHighReliability tests the pub/sub system with high reliability configuration
 func TestPubSubWithHighReliability(t *testing.T) {
 	store := NewRedisMockStore()
-	config := pubsub.HighReliabilityConfig(store)
+	config := patternx.HighReliabilityConfigPubSub(store)
 
-	ps, err := pubsub.NewPubSub(config)
+	ps, err := patternx.NewPubSub(config)
 	require.NoError(t, err)
 	defer ps.Close(context.Background())
 
@@ -73,20 +72,20 @@ func TestPubSubWithHighReliability(t *testing.T) {
 	}
 
 	// Create subscriptions with different reliability patterns
-	var orderMessages []*pubsub.Message
-	var paymentMessages []*pubsub.Message
-	var notificationMessages []*pubsub.Message
+	var orderMessages []*patternx.MessagePubSub
+	var paymentMessages []*patternx.MessagePubSub
+	var notificationMessages []*patternx.MessagePubSub
 	var mu sync.Mutex
 
 	// Order processing with high priority
-	orderHandler := func(ctx context.Context, msg *pubsub.Message) error {
+	orderHandler := func(ctx context.Context, msg *patternx.MessagePubSub) error {
 		mu.Lock()
 		defer mu.Unlock()
 		orderMessages = append(orderMessages, msg)
 		return nil
 	}
 
-	orderFilter := &pubsub.MessageFilter{
+	orderFilter := &patternx.MessageFilter{
 		Headers: map[string]string{"type": "order"},
 	}
 
@@ -95,7 +94,7 @@ func TestPubSubWithHighReliability(t *testing.T) {
 
 	// Payment processing with retry logic
 	paymentAttempts := 0
-	paymentHandler := func(ctx context.Context, msg *pubsub.Message) error {
+	paymentHandler := func(ctx context.Context, msg *patternx.MessagePubSub) error {
 		mu.Lock()
 		paymentAttempts++
 		currentAttempt := paymentAttempts
@@ -112,7 +111,7 @@ func TestPubSubWithHighReliability(t *testing.T) {
 		return nil
 	}
 
-	paymentFilter := &pubsub.MessageFilter{
+	paymentFilter := &patternx.MessageFilter{
 		Headers: map[string]string{"type": "payment"},
 	}
 
@@ -120,14 +119,14 @@ func TestPubSubWithHighReliability(t *testing.T) {
 	require.NoError(t, err)
 
 	// Notification processing
-	notificationHandler := func(ctx context.Context, msg *pubsub.Message) error {
+	notificationHandler := func(ctx context.Context, msg *patternx.MessagePubSub) error {
 		mu.Lock()
 		defer mu.Unlock()
 		notificationMessages = append(notificationMessages, msg)
 		return nil
 	}
 
-	notificationFilter := &pubsub.MessageFilter{
+	notificationFilter := &patternx.MessageFilter{
 		Headers: map[string]string{"type": "notification"},
 	}
 
@@ -185,10 +184,10 @@ func TestPubSubWithHighReliability(t *testing.T) {
 // TestPubSubLoadTesting tests the pub/sub system under load
 func TestPubSubLoadTesting(t *testing.T) {
 	store := NewRedisMockStore()
-	config := pubsub.HighReliabilityConfig(store)
+	config := patternx.HighReliabilityConfigPubSub(store)
 	config.BufferSize = 50000 // Large buffer for load testing
 
-	ps, err := pubsub.NewPubSub(config)
+	ps, err := patternx.NewPubSub(config)
 	require.NoError(t, err)
 	defer ps.Close(context.Background())
 
@@ -198,14 +197,14 @@ func TestPubSubLoadTesting(t *testing.T) {
 	var receivedCount int64
 	var mu sync.Mutex
 
-	handler := func(ctx context.Context, msg *pubsub.Message) error {
+	handler := func(ctx context.Context, msg *patternx.MessagePubSub) error {
 		mu.Lock()
 		defer mu.Unlock()
 		receivedCount++
 		return nil
 	}
 
-	_, err = ps.Subscribe(context.Background(), "load-test", "load-processor", handler, &pubsub.MessageFilter{})
+	_, err = ps.Subscribe(context.Background(), "load-test", "load-processor", handler, &patternx.MessageFilter{})
 	require.NoError(t, err)
 
 	// Publish messages concurrently
@@ -259,10 +258,10 @@ func TestPubSubLoadTesting(t *testing.T) {
 // TestPubSubFaultTolerance tests the pub/sub system's fault tolerance
 func TestPubSubFaultTolerance(t *testing.T) {
 	store := NewRedisMockStore()
-	config := pubsub.HighReliabilityConfig(store)
+	config := patternx.HighReliabilityConfigPubSub(store)
 	config.CircuitBreakerThreshold = 100 // High threshold to avoid interference with retry testing
 
-	ps, err := pubsub.NewPubSub(config)
+	ps, err := patternx.NewPubSub(config)
 	require.NoError(t, err)
 	defer ps.Close(context.Background())
 
@@ -273,7 +272,7 @@ func TestPubSubFaultTolerance(t *testing.T) {
 	var mu sync.Mutex
 
 	// Create a handler that fails twice then succeeds
-	handler := func(ctx context.Context, msg *pubsub.Message) error {
+	handler := func(ctx context.Context, msg *patternx.MessagePubSub) error {
 		// Simulate intermittent failures
 		if msg.RetryCount < 2 {
 			return errors.New("simulated temporary failure")
@@ -285,7 +284,7 @@ func TestPubSubFaultTolerance(t *testing.T) {
 		return nil
 	}
 
-	_, err = ps.Subscribe(context.Background(), "fault-test", "fault-processor", handler, &pubsub.MessageFilter{})
+	_, err = ps.Subscribe(context.Background(), "fault-test", "fault-processor", handler, &patternx.MessageFilter{})
 	require.NoError(t, err)
 
 	// Publish a single message to test retry functionality
@@ -313,26 +312,26 @@ func TestPubSubFaultTolerance(t *testing.T) {
 // TestPubSubMessageOrdering tests message ordering guarantees
 func TestPubSubMessageOrdering(t *testing.T) {
 	store := NewRedisMockStore()
-	config := pubsub.DefaultConfig(store)
+	config := patternx.DefaultConfigPubSub(store)
 
-	ps, err := pubsub.NewPubSub(config)
+	ps, err := patternx.NewPubSub(config)
 	require.NoError(t, err)
 	defer ps.Close(context.Background())
 
 	err = ps.CreateTopic(context.Background(), "order-test")
 	require.NoError(t, err)
 
-	var receivedMessages []*pubsub.Message
+	var receivedMessages []*patternx.MessagePubSub
 	var mu sync.Mutex
 
-	handler := func(ctx context.Context, msg *pubsub.Message) error {
+	handler := func(ctx context.Context, msg *patternx.MessagePubSub) error {
 		mu.Lock()
 		defer mu.Unlock()
 		receivedMessages = append(receivedMessages, msg)
 		return nil
 	}
 
-	_, err = ps.Subscribe(context.Background(), "order-test", "order-processor", handler, &pubsub.MessageFilter{})
+	_, err = ps.Subscribe(context.Background(), "order-test", "order-processor", handler, &patternx.MessageFilter{})
 	require.NoError(t, err)
 
 	// Publish messages in sequence
@@ -363,9 +362,9 @@ func TestPubSubMessageOrdering(t *testing.T) {
 // TestPubSubGracefulShutdown tests graceful shutdown behavior
 func TestPubSubGracefulShutdown(t *testing.T) {
 	store := NewRedisMockStore()
-	config := pubsub.DefaultConfig(store)
+	config := patternx.DefaultConfigPubSub(store)
 
-	ps, err := pubsub.NewPubSub(config)
+	ps, err := patternx.NewPubSub(config)
 	require.NoError(t, err)
 
 	err = ps.CreateTopic(context.Background(), "shutdown-test")
@@ -374,7 +373,7 @@ func TestPubSubGracefulShutdown(t *testing.T) {
 	var processedMessages int64
 	var mu sync.Mutex
 
-	handler := func(ctx context.Context, msg *pubsub.Message) error {
+	handler := func(ctx context.Context, msg *patternx.MessagePubSub) error {
 		// Simulate processing time
 		time.Sleep(10 * time.Millisecond)
 
@@ -384,7 +383,7 @@ func TestPubSubGracefulShutdown(t *testing.T) {
 		return nil
 	}
 
-	_, err = ps.Subscribe(context.Background(), "shutdown-test", "shutdown-processor", handler, &pubsub.MessageFilter{})
+	_, err = ps.Subscribe(context.Background(), "shutdown-test", "shutdown-processor", handler, &patternx.MessageFilter{})
 	require.NoError(t, err)
 
 	// Publish messages
@@ -419,29 +418,29 @@ func TestPubSubConfigurationValidation(t *testing.T) {
 	store := NewRedisMockStore()
 
 	// Test invalid configuration
-	invalidConfig := &pubsub.Config{
+	invalidConfig := &patternx.ConfigPubSub{
 		Store:            store,
 		BufferSize:       -1, // Invalid buffer size
 		MaxRetryAttempts: -1, // Invalid retry attempts
 	}
 
-	_, err := pubsub.NewPubSub(invalidConfig)
+	_, err := patternx.NewPubSub(invalidConfig)
 	assert.Error(t, err)
 
 	// Test nil configuration
-	_, err = pubsub.NewPubSub(nil)
+	_, err = patternx.NewPubSub(nil)
 	assert.Error(t, err)
 
 	// Test valid configuration
-	validConfig := pubsub.DefaultConfig(store)
-	ps, err := pubsub.NewPubSub(validConfig)
+	validConfig := patternx.DefaultConfigPubSub(store)
+	ps, err := patternx.NewPubSub(validConfig)
 	require.NoError(t, err)
 	defer ps.Close(context.Background())
 
 	// Verify default values were applied
-	assert.Equal(t, pubsub.DefaultKeyPrefix, validConfig.KeyPrefix)
-	assert.Equal(t, pubsub.DefaultTTL, validConfig.TTL)
-	assert.Equal(t, pubsub.DefaultBufferSize, validConfig.BufferSize)
-	assert.Equal(t, pubsub.MaxRetryAttempts, validConfig.MaxRetryAttempts)
-	assert.Equal(t, pubsub.RetryDelay, validConfig.RetryDelay)
+	assert.Equal(t, patternx.DefaultKeyPrefixPubSub, validConfig.KeyPrefix)
+	assert.Equal(t, patternx.DefaultTTLPubSub, validConfig.TTL)
+	assert.Equal(t, patternx.DefaultBufferSizePubSub, validConfig.BufferSize)
+	assert.Equal(t, patternx.MaxRetryAttemptsPubSub, validConfig.MaxRetryAttempts)
+	assert.Equal(t, patternx.RetryDelayPubSub, validConfig.RetryDelay)
 }

@@ -10,23 +10,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SeaSBee/go-patternx/patternx/bloom"
-	"github.com/SeaSBee/go-patternx/patternx/bulkhead"
-	"github.com/SeaSBee/go-patternx/patternx/cb"
-	"github.com/SeaSBee/go-patternx/patternx/dlq"
-	"github.com/SeaSBee/go-patternx/patternx/lock"
-	"github.com/SeaSBee/go-patternx/patternx/pool"
-	"github.com/SeaSBee/go-patternx/patternx/retry"
+	"github.com/SeaSBee/go-patternx"
 )
 
 // TestInputValidationSecurity tests input validation for security vulnerabilities
 func TestInputValidationSecurity(t *testing.T) {
 	t.Run("BloomFilter_SQLInjection", func(t *testing.T) {
-		config := &bloom.Config{
+		config := &patternx.BloomConfig{
 			ExpectedItems:     1000,
 			FalsePositiveRate: 0.01,
 		}
-		bf, err := bloom.NewBloomFilter(config)
+		bf, err := patternx.NewBloomFilter(config)
 		if err != nil {
 			t.Fatalf("Failed to create bloom filter: %v", err)
 		}
@@ -49,11 +43,11 @@ func TestInputValidationSecurity(t *testing.T) {
 	})
 
 	t.Run("BloomFilter_XSS", func(t *testing.T) {
-		config := &bloom.Config{
+		config := &patternx.BloomConfig{
 			ExpectedItems:     1000,
 			FalsePositiveRate: 0.01,
 		}
-		bf, err := bloom.NewBloomFilter(config)
+		bf, err := patternx.NewBloomFilter(config)
 		if err != nil {
 			t.Fatalf("Failed to create bloom filter: %v", err)
 		}
@@ -76,11 +70,11 @@ func TestInputValidationSecurity(t *testing.T) {
 	})
 
 	t.Run("BloomFilter_PathTraversal", func(t *testing.T) {
-		config := &bloom.Config{
+		config := &patternx.BloomConfig{
 			ExpectedItems:     1000,
 			FalsePositiveRate: 0.01,
 		}
-		bf, err := bloom.NewBloomFilter(config)
+		bf, err := patternx.NewBloomFilter(config)
 		if err != nil {
 			t.Fatalf("Failed to create bloom filter: %v", err)
 		}
@@ -107,11 +101,11 @@ func TestInputValidationSecurity(t *testing.T) {
 func TestResourceExhaustionSecurity(t *testing.T) {
 	t.Run("BloomFilter_MemoryExhaustion", func(t *testing.T) {
 		// Test with extremely large items
-		config := &bloom.Config{
+		config := &patternx.BloomConfig{
 			ExpectedItems:     1000,
 			FalsePositiveRate: 0.01,
 		}
-		bf, err := bloom.NewBloomFilter(config)
+		bf, err := patternx.NewBloomFilter(config)
 		if err != nil {
 			t.Fatalf("Failed to create bloom filter: %v", err)
 		}
@@ -129,13 +123,13 @@ func TestResourceExhaustionSecurity(t *testing.T) {
 	})
 
 	t.Run("Bulkhead_ConnectionExhaustion", func(t *testing.T) {
-		config := bulkhead.BulkheadConfig{
+		config := patternx.BulkheadConfig{
 			MaxConcurrentCalls: 2,
 			MaxQueueSize:       5,
 			MaxWaitDuration:    100 * time.Millisecond,
 			HealthThreshold:    0.5,
 		}
-		b, err := bulkhead.NewBulkhead(config)
+		b, err := patternx.NewBulkhead(config)
 		if err != nil {
 			t.Fatalf("Failed to create bulkhead: %v", err)
 		}
@@ -179,7 +173,7 @@ func TestResourceExhaustionSecurity(t *testing.T) {
 // TestInjectionSecurity tests for code injection vulnerabilities
 func TestInjectionSecurity(t *testing.T) {
 	t.Run("Retry_CommandInjection", func(t *testing.T) {
-		policy := retry.DefaultPolicy()
+		policy := patternx.DefaultPolicy()
 
 		// Test with potentially dangerous strings
 		dangerousInputs := []string{
@@ -191,7 +185,7 @@ func TestInjectionSecurity(t *testing.T) {
 		}
 
 		for _, input := range dangerousInputs {
-			err := retry.Retry(policy, func() error {
+			err := patternx.Retry(policy, func() error {
 				// Simulate operation with dangerous input
 				_ = input
 				return fmt.Errorf("test error")
@@ -204,8 +198,8 @@ func TestInjectionSecurity(t *testing.T) {
 	})
 
 	t.Run("DLQ_HandlerInjection", func(t *testing.T) {
-		config := dlq.DefaultConfig()
-		dq, err := dlq.NewDeadLetterQueue(config)
+		config := patternx.DefaultConfigDLQ()
+		dq, err := patternx.NewDeadLetterQueue(config)
 		if err != nil {
 			t.Fatalf("Failed to create DLQ: %v", err)
 		}
@@ -220,7 +214,7 @@ func TestInjectionSecurity(t *testing.T) {
 		}
 
 		for _, handlerType := range dangerousHandlers {
-			err := dq.AddFailedOperation(&dlq.FailedOperation{
+			err := dq.AddFailedOperation(&patternx.FailedOperation{
 				HandlerType: handlerType,
 				Data:        "test data",
 				Error:       "test error",
@@ -236,13 +230,13 @@ func TestInjectionSecurity(t *testing.T) {
 // TestAuthenticationSecurity tests authentication and authorization
 func TestAuthenticationSecurity(t *testing.T) {
 	t.Run("Redlock_AuthenticationBypass", func(t *testing.T) {
-		clients := []lock.LockClient{
+		clients := []patternx.LockClient{
 			NewMockLockClient(false, 0),
 			NewMockLockClient(false, 0),
 			NewMockLockClient(false, 0),
 		}
 
-		config := &lock.Config{
+		config := &patternx.Config{
 			Clients:       clients,
 			Quorum:        2,
 			RetryDelay:    10 * time.Millisecond,
@@ -251,7 +245,7 @@ func TestAuthenticationSecurity(t *testing.T) {
 			EnableMetrics: true,
 		}
 
-		rl, err := lock.NewRedlock(config)
+		rl, err := patternx.NewRedlock(config)
 		if err != nil {
 			t.Fatalf("Failed to create Redlock: %v", err)
 		}
@@ -278,11 +272,11 @@ func TestAuthenticationSecurity(t *testing.T) {
 // TestDataExfiltrationSecurity tests for data exfiltration vulnerabilities
 func TestDataExfiltrationSecurity(t *testing.T) {
 	t.Run("BloomFilter_DataLeakage", func(t *testing.T) {
-		config := &bloom.Config{
+		config := &patternx.BloomConfig{
 			ExpectedItems:     1000,
 			FalsePositiveRate: 0.01,
 		}
-		bf, err := bloom.NewBloomFilter(config)
+		bf, err := patternx.NewBloomFilter(config)
 		if err != nil {
 			t.Fatalf("Failed to create bloom filter: %v", err)
 		}
@@ -311,8 +305,8 @@ func TestDataExfiltrationSecurity(t *testing.T) {
 	})
 
 	t.Run("WorkerPool_DataLeakage", func(t *testing.T) {
-		config := pool.DefaultConfig()
-		wp, err := pool.New(config)
+		config := patternx.DefaultConfigPool()
+		wp, err := patternx.NewPool(config)
 		if err != nil {
 			t.Fatalf("Failed to create worker pool: %v", err)
 		}
@@ -321,7 +315,7 @@ func TestDataExfiltrationSecurity(t *testing.T) {
 		// Test with sensitive data in jobs
 		sensitiveData := "secret_password_123"
 
-		job := pool.Job{
+		job := patternx.JobPool{
 			ID:   "sensitive_job",
 			Task: func() (interface{}, error) { return sensitiveData, nil },
 		}
@@ -342,8 +336,8 @@ func TestDataExfiltrationSecurity(t *testing.T) {
 // TestDenialOfServiceSecurity tests for DoS vulnerabilities
 func TestDenialOfServiceSecurity(t *testing.T) {
 	t.Run("CircuitBreaker_DoS", func(t *testing.T) {
-		config := cb.DefaultConfig()
-		cb, err := cb.New(config)
+		config := patternx.DefaultConfigCircuitBreaker()
+		cb, err := patternx.NewCircuitBreaker(config)
 		if err != nil {
 			t.Fatalf("Failed to create circuit breaker: %v", err)
 		}
@@ -363,7 +357,7 @@ func TestDenialOfServiceSecurity(t *testing.T) {
 	})
 
 	t.Run("Retry_DoS", func(t *testing.T) {
-		policy := retry.Policy{
+		policy := patternx.Policy{
 			MaxAttempts:  100,
 			InitialDelay: 1 * time.Millisecond,
 			MaxDelay:     1 * time.Second,
@@ -372,7 +366,7 @@ func TestDenialOfServiceSecurity(t *testing.T) {
 
 		// Test with rapid retries
 		start := time.Now()
-		err := retry.Retry(policy, func() error {
+		err := patternx.Retry(policy, func() error {
 			return fmt.Errorf("intentional failure")
 		})
 		duration := time.Since(start)
@@ -391,11 +385,11 @@ func TestDenialOfServiceSecurity(t *testing.T) {
 // TestEncryptionSecurity tests encryption and data protection
 func TestEncryptionSecurity(t *testing.T) {
 	t.Run("BloomFilter_DataProtection", func(t *testing.T) {
-		config := &bloom.Config{
+		config := &patternx.BloomConfig{
 			ExpectedItems:     1000,
 			FalsePositiveRate: 0.01,
 		}
-		bf, err := bloom.NewBloomFilter(config)
+		bf, err := patternx.NewBloomFilter(config)
 		if err != nil {
 			t.Fatalf("Failed to create bloom filter: %v", err)
 		}
@@ -425,13 +419,13 @@ func TestEncryptionSecurity(t *testing.T) {
 // TestLoggingSecurity tests for sensitive data in logs
 func TestLoggingSecurity(t *testing.T) {
 	t.Run("Bulkhead_LogSanitization", func(t *testing.T) {
-		config := bulkhead.BulkheadConfig{
+		config := patternx.BulkheadConfig{
 			MaxConcurrentCalls: 1,
 			MaxQueueSize:       1,
 			MaxWaitDuration:    100 * time.Millisecond,
 			HealthThreshold:    0.5,
 		}
-		b, err := bulkhead.NewBulkhead(config)
+		b, err := patternx.NewBulkhead(config)
 		if err != nil {
 			t.Fatalf("Failed to create bulkhead: %v", err)
 		}
@@ -460,7 +454,7 @@ func TestLoggingSecurity(t *testing.T) {
 // TestRateLimitingSecurity tests rate limiting for security
 func TestRateLimitingSecurity(t *testing.T) {
 	t.Run("Retry_RateLimiting", func(t *testing.T) {
-		policy := retry.Policy{
+		policy := patternx.Policy{
 			MaxAttempts:     10,
 			InitialDelay:    1 * time.Millisecond,
 			MaxDelay:        1 * time.Second,
@@ -472,7 +466,7 @@ func TestRateLimitingSecurity(t *testing.T) {
 		// Test rate limiting
 		start := time.Now()
 		for i := 0; i < 10; i++ {
-			retry.Retry(policy, func() error {
+			patternx.Retry(policy, func() error {
 				return fmt.Errorf("intentional failure")
 			})
 		}
@@ -489,12 +483,12 @@ func TestRateLimitingSecurity(t *testing.T) {
 func TestConfigurationSecurity(t *testing.T) {
 	t.Run("BloomFilter_ConfigValidation", func(t *testing.T) {
 		// Test with malicious configuration
-		maliciousConfig := &bloom.Config{
+		maliciousConfig := &patternx.BloomConfig{
 			ExpectedItems:     0,   // Invalid
 			FalsePositiveRate: 2.0, // Invalid
 		}
 
-		_, err := bloom.NewBloomFilter(maliciousConfig)
+		_, err := patternx.NewBloomFilter(maliciousConfig)
 		if err == nil {
 			t.Error("Expected error for invalid configuration")
 		}
@@ -502,13 +496,13 @@ func TestConfigurationSecurity(t *testing.T) {
 
 	t.Run("Bulkhead_ConfigValidation", func(t *testing.T) {
 		// Test with malicious configuration
-		maliciousConfig := bulkhead.BulkheadConfig{
+		maliciousConfig := patternx.BulkheadConfig{
 			MaxConcurrentCalls: 0,   // Invalid
 			MaxQueueSize:       0,   // Invalid
 			HealthThreshold:    2.0, // Invalid
 		}
 
-		_, err := bulkhead.NewBulkhead(maliciousConfig)
+		_, err := patternx.NewBulkhead(maliciousConfig)
 		if err == nil {
 			t.Error("Expected error for invalid configuration")
 		}

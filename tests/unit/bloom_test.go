@@ -6,16 +6,16 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/SeaSBee/go-patternx/patternx/bloom"
+	"github.com/SeaSBee/go-patternx"
 )
 
 func TestNewBloomFilter(t *testing.T) {
-	config := &bloom.Config{
+	config := &patternx.BloomConfig{
 		ExpectedItems:     1000,
 		FalsePositiveRate: 0.01,
 	}
 
-	bf, err := bloom.NewBloomFilter(config)
+	bf, err := patternx.NewBloomFilter(config)
 	if err != nil {
 		t.Fatalf("Expected no error creating bloom filter, got %v", err)
 	}
@@ -26,12 +26,12 @@ func TestNewBloomFilter(t *testing.T) {
 }
 
 func TestBloomFilterAddAndContains(t *testing.T) {
-	config := &bloom.Config{
+	config := &patternx.BloomConfig{
 		ExpectedItems:     100,
 		FalsePositiveRate: 0.01,
 	}
 
-	bf, err := bloom.NewBloomFilter(config)
+	bf, err := patternx.NewBloomFilter(config)
 	if err != nil {
 		t.Fatalf("Failed to create bloom filter: %v", err)
 	}
@@ -72,12 +72,12 @@ func TestBloomFilterAddAndContains(t *testing.T) {
 }
 
 func TestBloomFilterBatchOperations(t *testing.T) {
-	config := &bloom.Config{
+	config := &patternx.BloomConfig{
 		ExpectedItems:     100,
 		FalsePositiveRate: 0.01,
 	}
 
-	bf, err := bloom.NewBloomFilter(config)
+	bf, err := patternx.NewBloomFilter(config)
 	if err != nil {
 		t.Fatalf("Failed to create bloom filter: %v", err)
 	}
@@ -104,46 +104,46 @@ func TestBloomFilterBatchOperations(t *testing.T) {
 
 func TestBloomFilterConfigValidation(t *testing.T) {
 	// Test with zero expected items - should fail validation
-	config := &bloom.Config{
+	config := &patternx.BloomConfig{
 		ExpectedItems:     0,
 		FalsePositiveRate: 0.01,
 	}
 
-	_, err := bloom.NewBloomFilter(config)
+	_, err := patternx.NewBloomFilter(config)
 	if err == nil {
 		t.Log("Expected error with zero expected items")
 	}
 
 	// Test with invalid false positive rate
-	config2 := &bloom.Config{
+	config2 := &patternx.BloomConfig{
 		ExpectedItems:     100,
 		FalsePositiveRate: 1.5, // Invalid: > 1
 	}
 
-	_, err = bloom.NewBloomFilter(config2)
+	_, err = patternx.NewBloomFilter(config2)
 	if err == nil {
 		t.Log("Expected error with invalid false positive rate")
 	}
 
 	// Test with negative false positive rate
-	config3 := &bloom.Config{
+	config3 := &patternx.BloomConfig{
 		ExpectedItems:     100,
 		FalsePositiveRate: -0.1, // Invalid: negative
 	}
 
-	_, err = bloom.NewBloomFilter(config3)
+	_, err = patternx.NewBloomFilter(config3)
 	if err == nil {
 		t.Log("Expected error with negative false positive rate")
 	}
 }
 
 func TestBloomFilterGetStats(t *testing.T) {
-	config := &bloom.Config{
+	config := &patternx.BloomConfig{
 		ExpectedItems:     100,
 		FalsePositiveRate: 0.01,
 	}
 
-	bf, err := bloom.NewBloomFilter(config)
+	bf, err := patternx.NewBloomFilter(config)
 	if err != nil {
 		t.Fatalf("Failed to create bloom filter: %v", err)
 	}
@@ -173,12 +173,12 @@ func TestBloomFilterGetStats(t *testing.T) {
 }
 
 func TestBloomFilterClear(t *testing.T) {
-	config := &bloom.Config{
+	config := &patternx.BloomConfig{
 		ExpectedItems:     100,
 		FalsePositiveRate: 0.01,
 	}
 
-	bf, err := bloom.NewBloomFilter(config)
+	bf, err := patternx.NewBloomFilter(config)
 	if err != nil {
 		t.Fatalf("Failed to create bloom filter: %v", err)
 	}
@@ -222,12 +222,12 @@ func TestBloomFilterClear(t *testing.T) {
 }
 
 func TestBloomFilterStats(t *testing.T) {
-	config := &bloom.Config{
+	config := &patternx.BloomConfig{
 		ExpectedItems:     100,
 		FalsePositiveRate: 0.01,
 	}
 
-	bf, err := bloom.NewBloomFilter(config)
+	bf, err := patternx.NewBloomFilter(config)
 	if err != nil {
 		t.Fatalf("Failed to create bloom filter: %v", err)
 	}
@@ -263,12 +263,12 @@ func TestBloomFilterStats(t *testing.T) {
 }
 
 func TestBloomFilterConcurrentAccess(t *testing.T) {
-	config := &bloom.Config{
+	config := &patternx.BloomConfig{
 		ExpectedItems:     1000,
 		FalsePositiveRate: 0.01,
 	}
 
-	bf, err := bloom.NewBloomFilter(config)
+	bf, err := patternx.NewBloomFilter(config)
 	if err != nil {
 		t.Fatalf("Failed to create bloom filter: %v", err)
 	}
@@ -305,12 +305,12 @@ func TestBloomFilterConcurrentAccess(t *testing.T) {
 }
 
 func TestBloomFilterEmptyString(t *testing.T) {
-	config := &bloom.Config{
+	config := &patternx.BloomConfig{
 		ExpectedItems:     100,
 		FalsePositiveRate: 0.01,
 	}
 
-	bf, err := bloom.NewBloomFilter(config)
+	bf, err := patternx.NewBloomFilter(config)
 	if err != nil {
 		t.Fatalf("Failed to create bloom filter: %v", err)
 	}
@@ -329,12 +329,12 @@ func TestBloomFilterEmptyString(t *testing.T) {
 }
 
 func TestBloomFilterSpecialCharacters(t *testing.T) {
-	config := &bloom.Config{
+	config := &patternx.BloomConfig{
 		ExpectedItems:     100,
 		FalsePositiveRate: 0.01,
 	}
 
-	bf, err := bloom.NewBloomFilter(config)
+	bf, err := patternx.NewBloomFilter(config)
 	if err != nil {
 		t.Fatalf("Failed to create bloom filter: %v", err)
 	}

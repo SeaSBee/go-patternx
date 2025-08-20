@@ -6,17 +6,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/SeaSBee/go-patternx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/SeaSBee/go-patternx/patternx/pubsub"
 )
 
 // TestDebugMessageDelivery tests basic message delivery to identify issues
 func TestDebugMessageDelivery(t *testing.T) {
 	store := NewMockStore()
-	config := pubsub.DefaultConfig(store)
-	ps, err := pubsub.NewPubSub(config)
+	config := patternx.DefaultConfigPubSub(store)
+	ps, err := patternx.NewPubSub(config)
 	require.NoError(t, err)
 	defer ps.Close(context.Background())
 
@@ -25,17 +24,17 @@ func TestDebugMessageDelivery(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create subscription
-	var receivedMessages []*pubsub.Message
+	var receivedMessages []*patternx.MessagePubSub
 	var mu sync.Mutex
 
-	handler := func(ctx context.Context, msg *pubsub.Message) error {
+	handler := func(ctx context.Context, msg *patternx.MessagePubSub) error {
 		mu.Lock()
 		defer mu.Unlock()
 		receivedMessages = append(receivedMessages, msg)
 		return nil
 	}
 
-	_, err = ps.Subscribe(context.Background(), "debug-topic", "debug-sub", handler, &pubsub.MessageFilter{})
+	_, err = ps.Subscribe(context.Background(), "debug-topic", "debug-sub", handler, &patternx.MessageFilter{})
 	require.NoError(t, err)
 
 	// Publish message
@@ -65,8 +64,8 @@ func TestDebugMessageDelivery(t *testing.T) {
 // TestDebugStats tests if stats are being collected properly
 func TestDebugStats(t *testing.T) {
 	store := NewMockStore()
-	config := pubsub.DefaultConfig(store)
-	ps, err := pubsub.NewPubSub(config)
+	config := patternx.DefaultConfigPubSub(store)
+	ps, err := patternx.NewPubSub(config)
 	require.NoError(t, err)
 	defer ps.Close(context.Background())
 
@@ -75,11 +74,11 @@ func TestDebugStats(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create subscription
-	handler := func(ctx context.Context, msg *pubsub.Message) error {
+	handler := func(ctx context.Context, msg *patternx.MessagePubSub) error {
 		return nil
 	}
 
-	_, err = ps.Subscribe(context.Background(), "stats-topic", "stats-sub", handler, &pubsub.MessageFilter{})
+	_, err = ps.Subscribe(context.Background(), "stats-topic", "stats-sub", handler, &patternx.MessageFilter{})
 	require.NoError(t, err)
 
 	// Publish message

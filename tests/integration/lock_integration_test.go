@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SeaSBee/go-patternx/patternx/lock"
+	"github.com/SeaSBee/go-patternx"
 )
 
 // MockLockClient implements LockClient interface for integration testing
@@ -155,13 +155,13 @@ func (m *MockLockClient) SetNetworkPartition(partition bool) {
 // TestRedlockBasicIntegration tests basic distributed locking
 func TestRedlockBasicIntegration(t *testing.T) {
 	// Create multiple mock clients
-	clients := []lock.LockClient{
+	clients := []patternx.LockClient{
 		NewMockLockClient(false, 10*time.Millisecond),
 		NewMockLockClient(false, 10*time.Millisecond),
 		NewMockLockClient(false, 10*time.Millisecond),
 	}
 
-	config := &lock.Config{
+	config := &patternx.Config{
 		Clients:     clients,
 		Quorum:      2,
 		RetryDelay:  50 * time.Millisecond,
@@ -169,7 +169,7 @@ func TestRedlockBasicIntegration(t *testing.T) {
 		DriftFactor: 0.01,
 	}
 
-	rl, err := lock.NewRedlock(config)
+	rl, err := patternx.NewRedlock(config)
 	if err != nil {
 		t.Fatalf("Failed to create Redlock: %v", err)
 	}
@@ -215,13 +215,13 @@ func TestRedlockBasicIntegration(t *testing.T) {
 // TestRedlockQuorumFailure tests behavior when quorum cannot be achieved
 func TestRedlockQuorumFailure(t *testing.T) {
 	// Create clients where some will fail
-	clients := []lock.LockClient{
+	clients := []patternx.LockClient{
 		NewMockLockClient(false, 10*time.Millisecond), // Success
 		NewMockLockClient(true, 10*time.Millisecond),  // Fail
 		NewMockLockClient(true, 10*time.Millisecond),  // Fail
 	}
 
-	config := &lock.Config{
+	config := &patternx.Config{
 		Clients:     clients,
 		Quorum:      2, // Need 2 out of 3, but only 1 succeeds
 		RetryDelay:  50 * time.Millisecond,
@@ -229,7 +229,7 @@ func TestRedlockQuorumFailure(t *testing.T) {
 		DriftFactor: 0.01,
 	}
 
-	rl, err := lock.NewRedlock(config)
+	rl, err := patternx.NewRedlock(config)
 	if err != nil {
 		t.Fatalf("Failed to create Redlock: %v", err)
 	}
@@ -247,13 +247,13 @@ func TestRedlockQuorumFailure(t *testing.T) {
 // TestRedlockNetworkPartition tests behavior during network partitions
 func TestRedlockNetworkPartition(t *testing.T) {
 	// Create clients
-	clients := []lock.LockClient{
+	clients := []patternx.LockClient{
 		NewMockLockClient(false, 10*time.Millisecond),
 		NewMockLockClient(false, 10*time.Millisecond),
 		NewMockLockClient(false, 10*time.Millisecond),
 	}
 
-	config := &lock.Config{
+	config := &patternx.Config{
 		Clients:     clients,
 		Quorum:      2,
 		RetryDelay:  50 * time.Millisecond,
@@ -261,7 +261,7 @@ func TestRedlockNetworkPartition(t *testing.T) {
 		DriftFactor: 0.01,
 	}
 
-	rl, err := lock.NewRedlock(config)
+	rl, err := patternx.NewRedlock(config)
 	if err != nil {
 		t.Fatalf("Failed to create Redlock: %v", err)
 	}
@@ -303,13 +303,13 @@ func TestRedlockNetworkPartition(t *testing.T) {
 
 // TestRedlockConcurrentAccess tests concurrent lock acquisition
 func TestRedlockConcurrentAccess(t *testing.T) {
-	clients := []lock.LockClient{
+	clients := []patternx.LockClient{
 		NewMockLockClient(false, 20*time.Millisecond),
 		NewMockLockClient(false, 20*time.Millisecond),
 		NewMockLockClient(false, 20*time.Millisecond),
 	}
 
-	config := &lock.Config{
+	config := &patternx.Config{
 		Clients:     clients,
 		Quorum:      2,
 		RetryDelay:  100 * time.Millisecond,
@@ -317,7 +317,7 @@ func TestRedlockConcurrentAccess(t *testing.T) {
 		DriftFactor: 0.01,
 	}
 
-	rl, err := lock.NewRedlock(config)
+	rl, err := patternx.NewRedlock(config)
 	if err != nil {
 		t.Fatalf("Failed to create Redlock: %v", err)
 	}
@@ -363,13 +363,13 @@ func TestRedlockConcurrentAccess(t *testing.T) {
 
 // TestRedlockLockTimeout tests lock acquisition with timeout
 func TestRedlockLockTimeout(t *testing.T) {
-	clients := []lock.LockClient{
+	clients := []patternx.LockClient{
 		NewMockLockClient(false, 200*time.Millisecond), // Slow client
 		NewMockLockClient(false, 200*time.Millisecond), // Slow client
 		NewMockLockClient(false, 200*time.Millisecond), // Slow client
 	}
 
-	config := &lock.Config{
+	config := &patternx.Config{
 		Clients:     clients,
 		Quorum:      2,
 		RetryDelay:  50 * time.Millisecond,
@@ -377,7 +377,7 @@ func TestRedlockLockTimeout(t *testing.T) {
 		DriftFactor: 0.01,
 	}
 
-	rl, err := lock.NewRedlock(config)
+	rl, err := patternx.NewRedlock(config)
 	if err != nil {
 		t.Fatalf("Failed to create Redlock: %v", err)
 	}
@@ -395,13 +395,13 @@ func TestRedlockLockTimeout(t *testing.T) {
 // TestRedlockLockRetry tests lock acquisition with retry logic
 func TestRedlockLockRetry(t *testing.T) {
 	// Create clients that fail initially but succeed later
-	clients := []lock.LockClient{
+	clients := []patternx.LockClient{
 		NewMockLockClient(false, 10*time.Millisecond),
 		NewMockLockClient(false, 10*time.Millisecond),
 		NewMockLockClient(false, 10*time.Millisecond),
 	}
 
-	config := &lock.Config{
+	config := &patternx.Config{
 		Clients:     clients,
 		Quorum:      2,
 		RetryDelay:  50 * time.Millisecond,
@@ -409,7 +409,7 @@ func TestRedlockLockRetry(t *testing.T) {
 		DriftFactor: 0.01,
 	}
 
-	rl, err := lock.NewRedlock(config)
+	rl, err := patternx.NewRedlock(config)
 	if err != nil {
 		t.Fatalf("Failed to create Redlock: %v", err)
 	}
@@ -432,13 +432,13 @@ func TestRedlockLockRetry(t *testing.T) {
 
 // TestRedlockLockExtend tests lock extension functionality
 func TestRedlockLockExtend(t *testing.T) {
-	clients := []lock.LockClient{
+	clients := []patternx.LockClient{
 		NewMockLockClient(false, 10*time.Millisecond),
 		NewMockLockClient(false, 10*time.Millisecond),
 		NewMockLockClient(false, 10*time.Millisecond),
 	}
 
-	config := &lock.Config{
+	config := &patternx.Config{
 		Clients:     clients,
 		Quorum:      2,
 		RetryDelay:  50 * time.Millisecond,
@@ -446,7 +446,7 @@ func TestRedlockLockExtend(t *testing.T) {
 		DriftFactor: 0.01,
 	}
 
-	rl, err := lock.NewRedlock(config)
+	rl, err := patternx.NewRedlock(config)
 	if err != nil {
 		t.Fatalf("Failed to create Redlock: %v", err)
 	}
@@ -479,13 +479,13 @@ func TestRedlockLockExtend(t *testing.T) {
 
 // TestRedlockLockExtendQuorumFailure tests lock extension when quorum cannot be achieved
 func TestRedlockLockExtendQuorumFailure(t *testing.T) {
-	clients := []lock.LockClient{
+	clients := []patternx.LockClient{
 		NewMockLockClient(false, 10*time.Millisecond),
 		NewMockLockClient(false, 10*time.Millisecond),
 		NewMockLockClient(false, 10*time.Millisecond),
 	}
 
-	config := &lock.Config{
+	config := &patternx.Config{
 		Clients:     clients,
 		Quorum:      2,
 		RetryDelay:  50 * time.Millisecond,
@@ -493,7 +493,7 @@ func TestRedlockLockExtendQuorumFailure(t *testing.T) {
 		DriftFactor: 0.01,
 	}
 
-	rl, err := lock.NewRedlock(config)
+	rl, err := patternx.NewRedlock(config)
 	if err != nil {
 		t.Fatalf("Failed to create Redlock: %v", err)
 	}
@@ -522,13 +522,13 @@ func TestRedlockLockExtendQuorumFailure(t *testing.T) {
 
 // TestRedlockStress tests stress conditions
 func TestRedlockStress(t *testing.T) {
-	clients := []lock.LockClient{
+	clients := []patternx.LockClient{
 		NewMockLockClient(false, 5*time.Millisecond),
 		NewMockLockClient(false, 5*time.Millisecond),
 		NewMockLockClient(false, 5*time.Millisecond),
 	}
 
-	config := &lock.Config{
+	config := &patternx.Config{
 		Clients:     clients,
 		Quorum:      2,
 		RetryDelay:  20 * time.Millisecond,
@@ -536,7 +536,7 @@ func TestRedlockStress(t *testing.T) {
 		DriftFactor: 0.01,
 	}
 
-	rl, err := lock.NewRedlock(config)
+	rl, err := patternx.NewRedlock(config)
 	if err != nil {
 		t.Fatalf("Failed to create Redlock: %v", err)
 	}
@@ -582,29 +582,29 @@ func TestRedlockStress(t *testing.T) {
 
 // TestRedlockConfigPresets tests different configuration presets
 func TestRedlockConfigPresets(t *testing.T) {
-	clients := []lock.LockClient{
+	clients := []patternx.LockClient{
 		NewMockLockClient(false, 10*time.Millisecond),
 		NewMockLockClient(false, 10*time.Millisecond),
 		NewMockLockClient(false, 10*time.Millisecond),
 	}
 
 	// Test default config
-	defaultConfig := lock.DefaultConfig(clients)
-	rl1, err := lock.NewRedlock(defaultConfig)
+	defaultConfig := patternx.DefaultConfig(clients)
+	rl1, err := patternx.NewRedlock(defaultConfig)
 	if err != nil {
 		t.Fatalf("Failed to create Redlock with default config: %v", err)
 	}
 
 	// Test conservative config
-	conservativeConfig := lock.ConservativeConfig(clients)
-	rl2, err := lock.NewRedlock(conservativeConfig)
+	conservativeConfig := patternx.ConservativeConfig(clients)
+	rl2, err := patternx.NewRedlock(conservativeConfig)
 	if err != nil {
 		t.Fatalf("Failed to create Redlock with conservative config: %v", err)
 	}
 
 	// Test aggressive config
-	aggressiveConfig := lock.AggressiveConfig(clients)
-	rl3, err := lock.NewRedlock(aggressiveConfig)
+	aggressiveConfig := patternx.AggressiveConfig(clients)
+	rl3, err := patternx.NewRedlock(aggressiveConfig)
 	if err != nil {
 		t.Fatalf("Failed to create Redlock with aggressive config: %v", err)
 	}

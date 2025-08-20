@@ -7,16 +7,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SeaSBee/go-patternx/patternx/cb"
+	"github.com/SeaSBee/go-patternx"
 )
 
 func TestNewCircuitBreaker(t *testing.T) {
-	config := cb.Config{
+	config := patternx.ConfigCircuitBreaker{
 		Threshold:   5,
 		Timeout:     30 * time.Second,
 		HalfOpenMax: 3,
 	}
-	breaker, err := cb.New(config)
+	breaker, err := patternx.NewCircuitBreaker(config)
 	if err != nil {
 		t.Fatalf("Failed to create circuit breaker: %v", err)
 	}
@@ -36,12 +36,12 @@ func TestNewCircuitBreaker(t *testing.T) {
 }
 
 func TestCircuitBreakerExecuteSuccess(t *testing.T) {
-	config := cb.Config{
+	config := patternx.ConfigCircuitBreaker{
 		Threshold:   3,
 		Timeout:     1 * time.Second,
 		HalfOpenMax: 2,
 	}
-	breaker, err := cb.New(config)
+	breaker, err := patternx.NewCircuitBreaker(config)
 	if err != nil {
 		t.Fatalf("Failed to create circuit breaker: %v", err)
 	}
@@ -56,7 +56,7 @@ func TestCircuitBreakerExecuteSuccess(t *testing.T) {
 	}
 
 	stats := breaker.GetStats()
-	if stats.State != cb.StateClosed {
+	if stats.State != patternx.StateClosed {
 		t.Errorf("Expected state CLOSED, got %s", stats.State)
 	}
 	if stats.TotalRequests != 1 {
@@ -68,12 +68,12 @@ func TestCircuitBreakerExecuteSuccess(t *testing.T) {
 }
 
 func TestCircuitBreakerExecuteFailure(t *testing.T) {
-	config := cb.Config{
+	config := patternx.ConfigCircuitBreaker{
 		Threshold:   3,
 		Timeout:     1 * time.Second,
 		HalfOpenMax: 2,
 	}
-	breaker, err := cb.New(config)
+	breaker, err := patternx.NewCircuitBreaker(config)
 	if err != nil {
 		t.Fatalf("Failed to create circuit breaker: %v", err)
 	}
@@ -90,7 +90,7 @@ func TestCircuitBreakerExecuteFailure(t *testing.T) {
 	}
 
 	stats := breaker.GetStats()
-	if stats.State != cb.StateClosed {
+	if stats.State != patternx.StateClosed {
 		t.Errorf("Expected state CLOSED, got %s", stats.State)
 	}
 	if stats.TotalRequests != 1 {
@@ -102,18 +102,18 @@ func TestCircuitBreakerExecuteFailure(t *testing.T) {
 }
 
 func TestCircuitBreakerStateTransitions(t *testing.T) {
-	config := cb.Config{
+	config := patternx.ConfigCircuitBreaker{
 		Threshold:   2,
 		Timeout:     100 * time.Millisecond,
 		HalfOpenMax: 2,
 	}
-	breaker, err := cb.New(config)
+	breaker, err := patternx.NewCircuitBreaker(config)
 	if err != nil {
 		t.Fatalf("Failed to create circuit breaker: %v", err)
 	}
 
 	// Start in CLOSED state
-	if breaker.GetState() != cb.StateClosed {
+	if breaker.GetState() != patternx.StateClosed {
 		t.Errorf("Expected initial state CLOSED, got %s", breaker.GetState())
 	}
 
@@ -125,7 +125,7 @@ func TestCircuitBreakerStateTransitions(t *testing.T) {
 	}
 
 	// Circuit should be OPEN
-	if breaker.GetState() != cb.StateOpen {
+	if breaker.GetState() != patternx.StateOpen {
 		t.Errorf("Expected state OPEN after failures, got %s", breaker.GetState())
 	}
 
@@ -143,7 +143,7 @@ func TestCircuitBreakerStateTransitions(t *testing.T) {
 
 	// Circuit should transition to HALF_OPEN (timing dependent)
 	state := breaker.GetState()
-	if state != cb.StateHalfOpen && state != cb.StateOpen {
+	if state != patternx.StateHalfOpen && state != patternx.StateOpen {
 		t.Errorf("Expected state HALF_OPEN or OPEN after timeout, got %s", state)
 	}
 
@@ -158,18 +158,18 @@ func TestCircuitBreakerStateTransitions(t *testing.T) {
 
 	// Circuit should be CLOSED again (timing dependent)
 	state = breaker.GetState()
-	if state != cb.StateClosed && state != cb.StateHalfOpen {
+	if state != patternx.StateClosed && state != patternx.StateHalfOpen {
 		t.Errorf("Expected state CLOSED or HALF_OPEN after success, got %s", state)
 	}
 }
 
 func TestCircuitBreakerExecuteWithContext(t *testing.T) {
-	config := cb.Config{
+	config := patternx.ConfigCircuitBreaker{
 		Threshold:   3,
 		Timeout:     1 * time.Second,
 		HalfOpenMax: 2,
 	}
-	breaker, err := cb.New(config)
+	breaker, err := patternx.NewCircuitBreaker(config)
 	if err != nil {
 		t.Fatalf("Failed to create circuit breaker: %v", err)
 	}
@@ -194,12 +194,12 @@ func TestCircuitBreakerExecuteWithContext(t *testing.T) {
 }
 
 func TestCircuitBreakerExecuteWithTimeout(t *testing.T) {
-	config := cb.Config{
+	config := patternx.ConfigCircuitBreaker{
 		Threshold:   3,
 		Timeout:     1 * time.Second,
 		HalfOpenMax: 2,
 	}
-	breaker, err := cb.New(config)
+	breaker, err := patternx.NewCircuitBreaker(config)
 	if err != nil {
 		t.Fatalf("Failed to create circuit breaker: %v", err)
 	}
@@ -221,12 +221,12 @@ func TestCircuitBreakerExecuteWithTimeout(t *testing.T) {
 }
 
 func TestCircuitBreakerContextCancellation(t *testing.T) {
-	config := cb.Config{
+	config := patternx.ConfigCircuitBreaker{
 		Threshold:   3,
 		Timeout:     1 * time.Second,
 		HalfOpenMax: 2,
 	}
-	breaker, err := cb.New(config)
+	breaker, err := patternx.NewCircuitBreaker(config)
 	if err != nil {
 		t.Fatalf("Failed to create circuit breaker: %v", err)
 	}
@@ -245,12 +245,12 @@ func TestCircuitBreakerContextCancellation(t *testing.T) {
 }
 
 func TestCircuitBreakerHalfOpenMaxLimit(t *testing.T) {
-	config := cb.Config{
+	config := patternx.ConfigCircuitBreaker{
 		Threshold:   1,
 		Timeout:     50 * time.Millisecond,
 		HalfOpenMax: 2,
 	}
-	breaker, err := cb.New(config)
+	breaker, err := patternx.NewCircuitBreaker(config)
 	if err != nil {
 		t.Fatalf("Failed to create circuit breaker: %v", err)
 	}
@@ -285,8 +285,8 @@ func TestCircuitBreakerHalfOpenMaxLimit(t *testing.T) {
 
 func TestCircuitBreakerConfigValidation(t *testing.T) {
 	// Test with valid default values
-	config := cb.DefaultConfig()
-	breaker, err := cb.New(config)
+	config := patternx.DefaultConfigCircuitBreaker()
+	breaker, err := patternx.NewCircuitBreaker(config)
 	if err != nil {
 		t.Fatalf("Failed to create circuit breaker: %v", err)
 	}
@@ -313,12 +313,12 @@ func TestCircuitBreakerConfigValidation(t *testing.T) {
 }
 
 func TestCircuitBreakerGetStats(t *testing.T) {
-	config := cb.Config{
+	config := patternx.ConfigCircuitBreaker{
 		Threshold:   2,
 		Timeout:     1 * time.Second,
 		HalfOpenMax: 2,
 	}
-	breaker, err := cb.New(config)
+	breaker, err := patternx.NewCircuitBreaker(config)
 	if err != nil {
 		t.Fatalf("Failed to create circuit breaker: %v", err)
 	}
@@ -343,18 +343,18 @@ func TestCircuitBreakerGetStats(t *testing.T) {
 	if stats.TotalFailures != 1 {
 		t.Errorf("Expected 1 total failure, got %d", stats.TotalFailures)
 	}
-	if stats.State != cb.StateClosed {
+	if stats.State != patternx.StateClosed {
 		t.Errorf("Expected state CLOSED, got %s", stats.State)
 	}
 }
 
 func TestCircuitBreakerConcurrentAccess(t *testing.T) {
-	config := cb.Config{
+	config := patternx.ConfigCircuitBreaker{
 		Threshold:   10,
 		Timeout:     1 * time.Second,
 		HalfOpenMax: 5,
 	}
-	breaker, err := cb.New(config)
+	breaker, err := patternx.NewCircuitBreaker(config)
 	if err != nil {
 		t.Fatalf("Failed to create circuit breaker: %v", err)
 	}

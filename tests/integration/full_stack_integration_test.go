@@ -7,27 +7,22 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SeaSBee/go-patternx/patternx/bloom"
-	"github.com/SeaSBee/go-patternx/patternx/bulkhead"
-	"github.com/SeaSBee/go-patternx/patternx/cb"
-	"github.com/SeaSBee/go-patternx/patternx/dlq"
-	"github.com/SeaSBee/go-patternx/patternx/pool"
-	"github.com/SeaSBee/go-patternx/patternx/retry"
+	"github.com/SeaSBee/go-patternx"
 )
 
 // FullStackService integrates all patterns for a realistic scenario
 type FullStackService struct {
 	// Resource isolation and fault tolerance
-	bulkhead       *bulkhead.Bulkhead
-	circuitBreaker *cb.CircuitBreaker
+	bulkhead       *patternx.Bulkhead
+	circuitBreaker *patternx.CircuitBreaker
 
 	// Processing and retry
-	workerPool  *pool.WorkerPool
-	retryPolicy retry.Policy
+	workerPool  *patternx.WorkerPool
+	retryPolicy patternx.Policy
 
 	// Data management
-	bloomFilter     *bloom.BloomFilter
-	deadLetterQueue *dlq.DeadLetterQueue
+	bloomFilter     *patternx.BloomFilter
+	deadLetterQueue *patternx.DeadLetterQueue
 
 	// Mock external service
 	externalService *MockExternalService
@@ -85,37 +80,37 @@ func NewFullStackService() (*FullStackService, error) {
 	externalService := NewMockExternalService(0.7, 100*time.Millisecond)
 
 	// Create bulkhead for resource isolation
-	bhConfig := bulkhead.BulkheadConfig{
+	bhConfig := patternx.BulkheadConfig{
 		MaxConcurrentCalls: 10,
 		MaxWaitDuration:    2 * time.Second,
 		MaxQueueSize:       20,
 		HealthThreshold:    0.5,
 	}
-	bulkhead, err := bulkhead.NewBulkhead(bhConfig)
+	bulkhead, err := patternx.NewBulkhead(bhConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create bulkhead: %w", err)
 	}
 
 	// Create circuit breaker for fault tolerance
-	cbConfig := cb.Config{
+	cbConfig := patternx.ConfigCircuitBreaker{
 		Threshold:   5,
 		Timeout:     500 * time.Millisecond,
 		HalfOpenMax: 3,
 	}
-	circuitBreaker, err := cb.New(cbConfig)
+	circuitBreaker, err := patternx.NewCircuitBreaker(cbConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create circuit breaker: %w", err)
 	}
 
 	// Create worker pool for processing
-	wpConfig := pool.DefaultConfig()
-	workerPool, err := pool.New(wpConfig)
+	wpConfig := patternx.DefaultConfigPool()
+	workerPool, err := patternx.NewPool(wpConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create worker pool: %w", err)
 	}
 
 	// Create retry policy
-	retryPolicy := retry.Policy{
+	retryPolicy := patternx.Policy{
 		MaxAttempts:     3,
 		InitialDelay:    50 * time.Millisecond,
 		MaxDelay:        500 * time.Millisecond,
@@ -126,24 +121,24 @@ func NewFullStackService() (*FullStackService, error) {
 	}
 
 	// Create bloom filter for deduplication
-	bloomConfig := &bloom.Config{
+	bloomConfig := &patternx.BloomConfig{
 		ExpectedItems:     10000,
 		FalsePositiveRate: 0.01,
 	}
-	bloomFilter, err := bloom.NewBloomFilter(bloomConfig)
+	bloomFilter, err := patternx.NewBloomFilter(bloomConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create bloom filter: %w", err)
 	}
 
 	// Create dead letter queue for failed operations
-	dlqConfig := &dlq.Config{
+	dlqConfig := &patternx.ConfigDLQ{
 		MaxRetries:    2,
 		RetryDelay:    100 * time.Millisecond,
 		WorkerCount:   2,
 		QueueSize:     100,
 		EnableMetrics: true,
 	}
-	deadLetterQueue, err := dlq.NewDeadLetterQueue(dlqConfig)
+	deadLetterQueue, err := patternx.NewDeadLetterQueue(dlqConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create dead letter queue: %w", err)
 	}
@@ -179,11 +174,11 @@ func (fss *FullStackService) ProcessItem(ctx context.Context, item string) error
 		// Use circuit breaker for fault tolerance
 		err := fss.circuitBreaker.Execute(func() error {
 			// Use worker pool for processing
-			job := pool.Job{
+			job := patternx.JobPool{
 				ID: fmt.Sprintf("process-%s", item),
 				Task: func() (interface{}, error) {
 					// Use retry for resilience
-					return retry.RetryWithResult(fss.retryPolicy, func() (string, error) {
+					return patternx.RetryWithResult(fss.retryPolicy, func() (string, error) {
 						return fss.externalService.Call(ctx, item)
 					})
 				},
@@ -217,7 +212,7 @@ func (fss *FullStackService) ProcessItem(ctx context.Context, item string) error
 
 	if err != nil {
 		// Add to dead letter queue for retry
-		failedOp := &dlq.FailedOperation{
+		failedOp := &patternx.FailedOperation{
 			ID:        fmt.Sprintf("item-%s-%d", item, time.Now().UnixNano()),
 			Operation: "process_item",
 			Key:       item,
@@ -258,7 +253,7 @@ func (fss *FullStackService) GetStats() map[string]interface{} {
 	processedCount := len(fss.processedItems)
 
 	return map[string]interface{}{
-		"bulkhead":               &bulkheadMetrics,
+		"bulkhead":               bulkheadMetrics,
 		"circuit_breaker":        circuitBreakerStats,
 		"worker_pool":            workerPoolStats,
 		"bloom_filter":           bloomFilterStats,
@@ -355,18 +350,18 @@ func TestFullStackIntegration(t *testing.T) {
 	t.Logf("  Processed items: %v", stats["processed_items"])
 
 	// Log pattern-specific stats
-	bulkheadMetrics := stats["bulkhead"].(*bulkhead.BulkheadMetrics)
+	bulkheadMetrics := stats["bulkhead"].(*patternx.BulkheadMetrics)
 	t.Logf("  Bulkhead total calls: %d", bulkheadMetrics.TotalCalls.Load())
 	t.Logf("  Bulkhead successful calls: %d", bulkheadMetrics.SuccessfulCalls.Load())
 	t.Logf("  Bulkhead failed calls: %d", bulkheadMetrics.FailedCalls.Load())
 	t.Logf("  Bulkhead rejected calls: %d", bulkheadMetrics.RejectedCalls.Load())
 
-	circuitBreakerStats := stats["circuit_breaker"].(cb.Stats)
+	circuitBreakerStats := stats["circuit_breaker"].(patternx.Stats)
 	t.Logf("  Circuit breaker state: %s", circuitBreakerStats.State)
 	t.Logf("  Circuit breaker total requests: %d", circuitBreakerStats.TotalRequests)
 	t.Logf("  Circuit breaker total failures: %d", circuitBreakerStats.TotalFailures)
 
-	workerPoolStats := stats["worker_pool"].(*pool.PoolStats)
+	workerPoolStats := stats["worker_pool"].(*patternx.PoolStatsPool)
 	t.Logf("  Worker pool completed jobs: %d", workerPoolStats.CompletedJobs.Load())
 	t.Logf("  Worker pool failed jobs: %d", workerPoolStats.FailedJobs.Load())
 	t.Logf("  Worker pool total workers: %d", workerPoolStats.TotalWorkers.Load())
@@ -375,7 +370,7 @@ func TestFullStackIntegration(t *testing.T) {
 	t.Logf("  Bloom filter items: %v", bloomFilterStats["item_count"])
 	t.Logf("  Bloom filter load factor: %.2f", bloomFilterStats["load_factor"].(float64))
 
-	dlqMetrics := stats["dead_letter_queue"].(*dlq.Metrics)
+	dlqMetrics := stats["dead_letter_queue"].(*patternx.Metrics)
 	t.Logf("  DLQ total failed: %d", dlqMetrics.TotalFailed)
 	t.Logf("  DLQ total retried: %d", dlqMetrics.TotalRetried)
 	t.Logf("  DLQ total succeeded: %d", dlqMetrics.TotalSucceeded)
@@ -471,11 +466,11 @@ func TestFullStackStress(t *testing.T) {
 	t.Logf("  Processed items: %v", stats["processed_items"])
 
 	// Verify all patterns provided protection under stress
-	bulkheadMetrics := stats["bulkhead"].(*bulkhead.BulkheadMetrics)
-	circuitBreakerStats := stats["circuit_breaker"].(cb.Stats)
-	workerPoolStats := stats["worker_pool"].(*pool.PoolStats)
+	bulkheadMetrics := stats["bulkhead"].(*patternx.BulkheadMetrics)
+	circuitBreakerStats := stats["circuit_breaker"].(patternx.Stats)
+	workerPoolStats := stats["worker_pool"].(*patternx.PoolStatsPool)
 	bloomFilterStats := stats["bloom_filter"].(map[string]interface{})
-	dlqMetrics := stats["dead_letter_queue"].(*dlq.Metrics)
+	dlqMetrics := stats["dead_letter_queue"].(*patternx.Metrics)
 
 	// Verify bulkhead provided resource isolation
 	if bulkheadMetrics.RejectedCalls.Load() == 0 && numItems > 10 {

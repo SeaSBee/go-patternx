@@ -1,4 +1,4 @@
-package bloom
+package patternx
 
 import (
 	"context"
@@ -17,59 +17,24 @@ import (
 	"github.com/seasbee/go-logx"
 )
 
-// Common errors for Bloom Filter operations
-var (
-	ErrInvalidConfig         = errors.New("invalid bloom filter configuration")
-	ErrEmptyItem             = errors.New("item cannot be empty")
-	ErrItemTooLong           = errors.New("item exceeds maximum length")
-	ErrCapacityExceeded      = errors.New("bloom filter capacity exceeded")
-	ErrStoreUnavailable      = errors.New("store is not available")
-	ErrContextCancelled      = errors.New("operation cancelled by context")
-	ErrInvalidFalsePositive  = errors.New("false positive rate must be between 0 and 1")
-	ErrInvalidExpectedItems  = errors.New("expected items must be greater than 0")
-	ErrInvalidSize           = errors.New("bloom filter size is invalid")
-	ErrInvalidHashCount      = errors.New("hash count is invalid")
-	ErrStoreOperationFailed  = errors.New("store operation failed")
-	ErrSerializationFailed   = errors.New("failed to serialize bloom filter state")
-	ErrDeserializationFailed = errors.New("failed to deserialize bloom filter state")
-	ErrFilterClosed          = errors.New("bloom filter is closed")
-)
-
-// Constants for production constraints
-const (
-	MaxItemLength    = 1024 * 1024   // 1MB max item length
-	MaxExpectedItems = 1_000_000_000 // 1 billion max expected items
-	MinExpectedItems = 1             // Minimum expected items
-	MaxFalsePositive = 0.5           // 50% max false positive rate
-	MinFalsePositive = 1e-6          // 0.0001% min false positive rate
-	MaxHashCount     = 50            // Maximum number of hash functions
-	MinHashCount     = 1             // Minimum number of hash functions
-	MaxBitsetSize    = 1e10          // 10 billion max bitset size
-	DefaultTTL       = 24 * time.Hour
-	DefaultKeyPrefix = "bloom"
-	MaxRetryAttempts = 3
-	RetryDelay       = 100 * time.Millisecond
-)
-
-// BloomFilter implements a production-ready probabilistic data structure for membership testing
-type BloomFilter struct {
-	mu                sync.RWMutex
-	storeMu           sync.Mutex // Dedicated mutex for store operations
-	bitset            []bool
-	size              uint64
-	hashCount         int
-	itemCount         uint64
-	maxItems          uint64
-	falsePositiveRate float64
-	store             BloomStore
-	keyPrefix         string
-	ttl               time.Duration
-	closed            int32 // Atomic flag for closed state
-	metrics           *Metrics
+// Bloom Filter Types
+type BloomStore interface {
+	Set(ctx context.Context, key string, value []byte, ttl time.Duration) error
+	Get(ctx context.Context, key string) ([]byte, error)
+	Del(ctx context.Context, key string) error
+	Exists(ctx context.Context, key string) (bool, error)
 }
 
-// Metrics tracks Bloom filter performance and usage statistics with atomic operations
-type Metrics struct {
+type BloomConfig struct {
+	ExpectedItems     uint64        // Expected number of items
+	FalsePositiveRate float64       // Desired false positive rate (0.01 = 1%)
+	Store             BloomStore    // Optional store for persistence
+	KeyPrefix         string        // Key prefix for store operations
+	TTL               time.Duration // Time-to-live for stored data
+	EnableMetrics     bool          // Enable performance metrics
+}
+
+type BloomMetrics struct {
 	AddOperations           atomic.Uint64
 	ContainsOperations      atomic.Uint64
 	AddBatchOperations      atomic.Uint64
@@ -85,23 +50,37 @@ type Metrics struct {
 	AverageContainsLatency  time.Duration
 }
 
-// BloomStore defines the interface for persisting bloom filter state
-type BloomStore interface {
-	Set(ctx context.Context, key string, value []byte, ttl time.Duration) error
-	Get(ctx context.Context, key string) ([]byte, error)
-	Del(ctx context.Context, key string) error
-	Exists(ctx context.Context, key string) (bool, error)
+type BloomFilter struct {
+	mu                sync.RWMutex
+	storeMu           sync.Mutex // Dedicated mutex for store operations
+	bitset            []bool
+	size              uint64
+	hashCount         int
+	itemCount         uint64
+	maxItems          uint64
+	falsePositiveRate float64
+	store             BloomStore
+	keyPrefix         string
+	ttl               time.Duration
+	closed            int32 // Atomic flag for closed state
+	metrics           *BloomMetrics
 }
 
-// Config holds Bloom filter configuration with validation
-type Config struct {
-	ExpectedItems     uint64        // Expected number of items
-	FalsePositiveRate float64       // Desired false positive rate (0.01 = 1%)
-	Store             BloomStore    // Optional store for persistence
-	KeyPrefix         string        // Key prefix for store operations
-	TTL               time.Duration // TTL for stored data
-	EnableMetrics     bool          // Enable performance metrics
-}
+// Constants for production constraints
+const (
+	MaxItemLengthBloom    = 1024 * 1024   // 1MB max item length
+	MaxExpectedItemsBloom = 1_000_000_000 // 1 billion max expected items
+	MinExpectedItemsBloom = 1             // Minimum expected items
+	MaxFalsePositiveBloom = 0.5           // 50% max false positive rate
+	MinFalsePositiveBloom = 1e-6          // 0.0001% min false positive rate
+	MaxHashCountBloom     = 50            // Maximum number of hash functions
+	MinHashCountBloom     = 1             // Minimum number of hash functions
+	MaxBitsetSizeBloom    = 1e10          // 10 billion max bitset size
+	DefaultTTLBloom       = 24 * time.Hour
+	DefaultKeyPrefixBloom = "bloom"
+	MaxRetryAttemptsBloom = 3
+	RetryDelayBloom       = 100 * time.Millisecond
+)
 
 // BloomFilterState represents the serializable state of a Bloom filter
 type BloomFilterState struct {
@@ -115,14 +94,14 @@ type BloomFilterState struct {
 }
 
 // NewBloomFilter creates a new production-ready Bloom filter with comprehensive validation
-func NewBloomFilter(config *Config) (*BloomFilter, error) {
+func NewBloomFilter(config *BloomConfig) (*BloomFilter, error) {
 	// Validate configuration
-	if err := validateConfig(config); err != nil {
+	if err := validateBloomConfig(config); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidConfig, err)
 	}
 
 	// Apply defaults
-	applyDefaults(config)
+	applyBloomDefaults(config)
 
 	// Calculate optimal size and hash count with validation
 	size, hashCount, err := calculateOptimalParameters(config.ExpectedItems, config.FalsePositiveRate)
@@ -140,7 +119,7 @@ func NewBloomFilter(config *Config) (*BloomFilter, error) {
 		store:             config.Store,
 		keyPrefix:         config.KeyPrefix,
 		ttl:               config.TTL,
-		metrics:           &Metrics{},
+		metrics:           &BloomMetrics{},
 	}
 
 	// Load existing state if store is provided
@@ -582,7 +561,7 @@ func (bf *BloomFilter) saveToStoreWithRetry(ctx context.Context) error {
 	}
 
 	var lastErr error
-	for attempt := 0; attempt < MaxRetryAttempts; attempt++ {
+	for attempt := 0; attempt < MaxRetryAttemptsBloom; attempt++ {
 		if err := ctx.Err(); err != nil {
 			return fmt.Errorf("%w: %v", ErrContextCancelled, err)
 		}
@@ -595,12 +574,12 @@ func (bf *BloomFilter) saveToStoreWithRetry(ctx context.Context) error {
 
 		if err != nil {
 			lastErr = err
-			if attempt < MaxRetryAttempts-1 {
+			if attempt < MaxRetryAttemptsBloom-1 {
 				// Sleep outside of the mutex to prevent deadlocks
 				select {
 				case <-ctx.Done():
 					return fmt.Errorf("%w: %v", ErrContextCancelled, ctx.Err())
-				case <-time.After(RetryDelay * time.Duration(attempt+1)):
+				case <-time.After(RetryDelayBloom * time.Duration(attempt+1)):
 					continue
 				}
 			}
@@ -701,7 +680,7 @@ func (bf *BloomFilter) loadFromStoreWithRetry(ctx context.Context) error {
 	}
 
 	var lastErr error
-	for attempt := 0; attempt < MaxRetryAttempts; attempt++ {
+	for attempt := 0; attempt < MaxRetryAttemptsBloom; attempt++ {
 		if err := ctx.Err(); err != nil {
 			return fmt.Errorf("%w: %v", ErrContextCancelled, err)
 		}
@@ -714,12 +693,12 @@ func (bf *BloomFilter) loadFromStoreWithRetry(ctx context.Context) error {
 
 		if err != nil {
 			lastErr = err
-			if attempt < MaxRetryAttempts-1 {
+			if attempt < MaxRetryAttemptsBloom-1 {
 				// Sleep outside of the mutex to prevent deadlocks
 				select {
 				case <-ctx.Done():
 					return fmt.Errorf("%w: %v", ErrContextCancelled, ctx.Err())
-				case <-time.After(RetryDelay * time.Duration(attempt+1)):
+				case <-time.After(RetryDelayBloom * time.Duration(attempt+1)):
 					continue
 				}
 			}
@@ -964,20 +943,20 @@ func (bf *BloomFilter) updateContainsBatchMetrics(duration time.Duration, itemCo
 	}
 }
 
-// validateConfig validates Bloom filter configuration
-func validateConfig(config *Config) error {
+// validateBloomConfig validates Bloom filter configuration
+func validateBloomConfig(config *BloomConfig) error {
 	if config == nil {
 		return errors.New("config cannot be nil")
 	}
 
-	if config.ExpectedItems < MinExpectedItems || config.ExpectedItems > MaxExpectedItems {
+	if config.ExpectedItems < MinExpectedItemsBloom || config.ExpectedItems > MaxExpectedItemsBloom {
 		return fmt.Errorf("%w: expected items must be between %d and %d, got %d",
-			ErrInvalidExpectedItems, MinExpectedItems, MaxExpectedItems, config.ExpectedItems)
+			ErrInvalidExpectedItems, MinExpectedItemsBloom, MaxExpectedItemsBloom, config.ExpectedItems)
 	}
 
-	if config.FalsePositiveRate < MinFalsePositive || config.FalsePositiveRate > MaxFalsePositive {
+	if config.FalsePositiveRate < MinFalsePositiveBloom || config.FalsePositiveRate > MaxFalsePositiveBloom {
 		return fmt.Errorf("%w: false positive rate must be between %f and %f, got %f",
-			ErrInvalidFalsePositive, MinFalsePositive, MaxFalsePositive, config.FalsePositiveRate)
+			ErrInvalidFalsePositive, MinFalsePositiveBloom, MaxFalsePositiveBloom, config.FalsePositiveRate)
 	}
 
 	return nil
@@ -989,9 +968,9 @@ func validateItem(item string) error {
 		return ErrEmptyItem
 	}
 
-	if len(item) > MaxItemLength {
+	if len(item) > MaxItemLengthBloom {
 		return fmt.Errorf("%w: item length %d exceeds maximum %d",
-			ErrItemTooLong, len(item), MaxItemLength)
+			ErrItemTooLong, len(item), MaxItemLengthBloom)
 	}
 
 	return nil
@@ -1032,14 +1011,14 @@ func validateBloomFilterState(state *BloomFilterState, expectedSize uint64, expe
 	return nil
 }
 
-// applyDefaults applies default values to configuration
-func applyDefaults(config *Config) {
+// applyBloomDefaults applies default values to configuration
+func applyBloomDefaults(config *BloomConfig) {
 	if config.KeyPrefix == "" {
-		config.KeyPrefix = DefaultKeyPrefix
+		config.KeyPrefix = DefaultKeyPrefixBloom
 	}
 
 	if config.TTL == 0 {
-		config.TTL = DefaultTTL
+		config.TTL = DefaultTTLBloom
 	}
 }
 
@@ -1047,13 +1026,13 @@ func applyDefaults(config *Config) {
 func calculateOptimalParameters(n uint64, p float64) (size uint64, hashCount int, err error) {
 	// Calculate optimal size
 	size = calculateOptimalSize(n, p)
-	if size == 0 || size > MaxBitsetSize {
+	if size == 0 || size > MaxBitsetSizeBloom {
 		return 0, 0, fmt.Errorf("%w: calculated size %d is invalid", ErrInvalidSize, size)
 	}
 
 	// Calculate optimal hash count
 	hashCount = calculateOptimalHashCount(size, n)
-	if hashCount < MinHashCount || hashCount > MaxHashCount {
+	if hashCount < MinHashCountBloom || hashCount > MaxHashCountBloom {
 		return 0, 0, fmt.Errorf("%w: calculated hash count %d is invalid", ErrInvalidHashCount, hashCount)
 	}
 
@@ -1080,38 +1059,38 @@ func truncateString(s string, maxLen int) string {
 	return s[:maxLen] + "..."
 }
 
-// DefaultConfig returns a default Bloom filter configuration
-func DefaultConfig(store BloomStore) *Config {
-	return &Config{
+// DefaultBloomConfig returns a default Bloom filter configuration
+func DefaultBloomConfig(store BloomStore) *BloomConfig {
+	return &BloomConfig{
 		ExpectedItems:     10000,
 		FalsePositiveRate: 0.01, // 1%
 		Store:             store,
-		KeyPrefix:         DefaultKeyPrefix,
-		TTL:               DefaultTTL,
+		KeyPrefix:         DefaultKeyPrefixBloom,
+		TTL:               DefaultTTLBloom,
 		EnableMetrics:     true,
 	}
 }
 
-// ConservativeConfig returns a conservative Bloom filter configuration
-func ConservativeConfig(store BloomStore) *Config {
-	return &Config{
+// ConservativeBloomConfig returns a conservative Bloom filter configuration
+func ConservativeBloomConfig(store BloomStore) *BloomConfig {
+	return &BloomConfig{
 		ExpectedItems:     50000,
 		FalsePositiveRate: 0.001, // 0.1%
 		Store:             store,
-		KeyPrefix:         DefaultKeyPrefix,
-		TTL:               DefaultTTL,
+		KeyPrefix:         DefaultKeyPrefixBloom,
+		TTL:               DefaultTTLBloom,
 		EnableMetrics:     true,
 	}
 }
 
-// AggressiveConfig returns an aggressive Bloom filter configuration
-func AggressiveConfig(store BloomStore) *Config {
-	return &Config{
+// AggressiveBloomConfig returns an aggressive Bloom filter configuration
+func AggressiveBloomConfig(store BloomStore) *BloomConfig {
+	return &BloomConfig{
 		ExpectedItems:     1000,
 		FalsePositiveRate: 0.05, // 5%
 		Store:             store,
-		KeyPrefix:         DefaultKeyPrefix,
-		TTL:               DefaultTTL,
+		KeyPrefix:         DefaultKeyPrefixBloom,
+		TTL:               DefaultTTLBloom,
 		EnableMetrics:     true,
 	}
 }

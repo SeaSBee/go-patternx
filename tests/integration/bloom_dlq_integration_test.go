@@ -8,8 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SeaSBee/go-patternx/patternx/bloom"
-	"github.com/SeaSBee/go-patternx/patternx/dlq"
+	"github.com/SeaSBee/go-patternx"
 )
 
 // MockProcessor simulates a processor that can fail and needs DLQ
@@ -59,18 +58,18 @@ func (p *MockProcessor) GetFailedCount(item string) int {
 
 // BloomFilterProcessor integrates bloom filter with DLQ
 type BloomFilterProcessor struct {
-	bloomFilter *bloom.BloomFilter
-	dlq         *dlq.DeadLetterQueue
+	bloomFilter *patternx.BloomFilter
+	dlq         *patternx.DeadLetterQueue
 	processor   *MockProcessor
 }
 
-func NewBloomFilterProcessor(bloomConfig *bloom.Config, dlqConfig *dlq.Config, processor *MockProcessor) (*BloomFilterProcessor, error) {
-	bf, err := bloom.NewBloomFilter(bloomConfig)
+func NewBloomFilterProcessor(bloomConfig *patternx.BloomConfig, dlqConfig *patternx.ConfigDLQ, processor *MockProcessor) (*BloomFilterProcessor, error) {
+	bf, err := patternx.NewBloomFilter(bloomConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create bloom filter: %w", err)
 	}
 
-	dq, err := dlq.NewDeadLetterQueue(dlqConfig)
+	dq, err := patternx.NewDeadLetterQueue(dlqConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create dead letter queue: %w", err)
 	}
@@ -98,7 +97,7 @@ func (bfp *BloomFilterProcessor) ProcessItem(ctx context.Context, item string) e
 	err = bfp.processor.Process(ctx, item)
 	if err != nil {
 		// Add to dead letter queue for retry
-		failedOp := &dlq.FailedOperation{
+		failedOp := &patternx.FailedOperation{
 			ID:          fmt.Sprintf("item-%s-%d", item, time.Now().UnixNano()),
 			Operation:   "process_item",
 			Key:         item,
@@ -137,13 +136,13 @@ func (bfp *BloomFilterProcessor) GetStats() map[string]interface{} {
 // TestBloomFilterWithDLQ tests the integration of bloom filter and DLQ
 func TestBloomFilterWithDLQ(t *testing.T) {
 	// Create bloom filter configuration
-	bloomConfig := &bloom.Config{
+	bloomConfig := &patternx.BloomConfig{
 		ExpectedItems:     1000,
 		FalsePositiveRate: 0.01,
 	}
 
 	// Create DLQ configuration
-	dlqConfig := &dlq.Config{
+	dlqConfig := &patternx.ConfigDLQ{
 		MaxRetries:    3,
 		RetryDelay:    100 * time.Millisecond,
 		WorkerCount:   2,
@@ -207,7 +206,7 @@ func TestBloomFilterWithDLQ(t *testing.T) {
 	// Get statistics
 	stats := bfp.GetStats()
 	bloomStats := stats["bloom_filter"].(map[string]interface{})
-	dlqMetrics := stats["dlq_metrics"].(*dlq.Metrics)
+	dlqMetrics := stats["dlq_metrics"].(*patternx.Metrics)
 
 	t.Logf("Bloom filter with DLQ integration test results:")
 	t.Logf("  Duration: %v", duration)
@@ -249,12 +248,12 @@ func TestBloomFilterWithDLQ(t *testing.T) {
 // TestBloomFilterDLQRetry tests retry behavior with bloom filter
 func TestBloomFilterDLQRetry(t *testing.T) {
 	// Create configurations
-	bloomConfig := &bloom.Config{
+	bloomConfig := &patternx.BloomConfig{
 		ExpectedItems:     100,
 		FalsePositiveRate: 0.05,
 	}
 
-	dlqConfig := &dlq.Config{
+	dlqConfig := &patternx.ConfigDLQ{
 		MaxRetries:    2,
 		RetryDelay:    50 * time.Millisecond,
 		WorkerCount:   1,
@@ -285,7 +284,7 @@ func TestBloomFilterDLQRetry(t *testing.T) {
 
 	// Get initial stats
 	initialStats := bfp.GetStats()
-	initialDLQ := initialStats["dlq_metrics"].(*dlq.Metrics)
+	initialDLQ := initialStats["dlq_metrics"].(*patternx.Metrics)
 
 	t.Logf("Initial DLQ failed: %d", initialDLQ.TotalFailed)
 
@@ -310,7 +309,7 @@ func TestBloomFilterDLQRetry(t *testing.T) {
 
 	// Get final stats
 	finalStats := bfp.GetStats()
-	finalDLQ := finalStats["dlq_metrics"].(*dlq.Metrics)
+	finalDLQ := finalStats["dlq_metrics"].(*patternx.Metrics)
 	bloomStats := finalStats["bloom_filter"].(map[string]interface{})
 
 	t.Logf("Retry test results:")
@@ -343,12 +342,12 @@ func TestBloomFilterDLQRetry(t *testing.T) {
 // TestBloomFilterDLQStress tests stress conditions
 func TestBloomFilterDLQStress(t *testing.T) {
 	// Create configurations for stress test
-	bloomConfig := &bloom.Config{
+	bloomConfig := &patternx.BloomConfig{
 		ExpectedItems:     500,
 		FalsePositiveRate: 0.02,
 	}
 
-	dlqConfig := &dlq.Config{
+	dlqConfig := &patternx.ConfigDLQ{
 		MaxRetries:    1,
 		RetryDelay:    20 * time.Millisecond,
 		WorkerCount:   3,
@@ -416,7 +415,7 @@ func TestBloomFilterDLQStress(t *testing.T) {
 	// Get final statistics
 	finalStats := bfp.GetStats()
 	bloomStats := finalStats["bloom_filter"].(map[string]interface{})
-	dlqMetrics := finalStats["dlq_metrics"].(*dlq.Metrics)
+	dlqMetrics := finalStats["dlq_metrics"].(*patternx.Metrics)
 
 	t.Logf("Stress test results:")
 	t.Logf("  Duration: %v", duration)

@@ -8,10 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/SeaSBee/go-patternx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/SeaSBee/go-patternx/patternx/pubsub"
 )
 
 // MockStore implements PubSubStore for testing
@@ -58,9 +57,9 @@ func (m *MockStore) Exists(ctx context.Context, key string) (bool, error) {
 
 func TestNewPubSub(t *testing.T) {
 	store := NewMockStore()
-	config := pubsub.DefaultConfig(store)
+	config := patternx.DefaultConfigPubSub(store)
 
-	ps, err := pubsub.NewPubSub(config)
+	ps, err := patternx.NewPubSub(config)
 	require.NoError(t, err)
 	require.NotNil(t, ps)
 
@@ -73,8 +72,8 @@ func TestNewPubSub(t *testing.T) {
 
 func TestCreateTopic(t *testing.T) {
 	store := NewMockStore()
-	config := pubsub.DefaultConfig(store)
-	ps, err := pubsub.NewPubSub(config)
+	config := patternx.DefaultConfigPubSub(store)
+	ps, err := patternx.NewPubSub(config)
 	require.NoError(t, err)
 	defer ps.Close(context.Background())
 
@@ -93,8 +92,8 @@ func TestCreateTopic(t *testing.T) {
 
 func TestSubscribe(t *testing.T) {
 	store := NewMockStore()
-	config := pubsub.DefaultConfig(store)
-	ps, err := pubsub.NewPubSub(config)
+	config := patternx.DefaultConfigPubSub(store)
+	ps, err := patternx.NewPubSub(config)
 	require.NoError(t, err)
 	defer ps.Close(context.Background())
 
@@ -103,31 +102,31 @@ func TestSubscribe(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test successful subscription
-	handler := func(ctx context.Context, msg *pubsub.Message) error {
+	handler := func(ctx context.Context, msg *patternx.MessagePubSub) error {
 		return nil
 	}
 
-	subscription, err := ps.Subscribe(context.Background(), "test-topic", "sub-1", handler, &pubsub.MessageFilter{})
+	subscription, err := ps.Subscribe(context.Background(), "test-topic", "sub-1", handler, &patternx.MessageFilter{})
 	assert.NoError(t, err)
 	assert.NotNil(t, subscription)
 
 	// Test duplicate subscription
-	_, err = ps.Subscribe(context.Background(), "test-topic", "sub-1", handler, &pubsub.MessageFilter{})
+	_, err = ps.Subscribe(context.Background(), "test-topic", "sub-1", handler, &patternx.MessageFilter{})
 	assert.Error(t, err)
 
 	// Test subscription to non-existent topic
-	_, err = ps.Subscribe(context.Background(), "non-existent", "sub-2", handler, &pubsub.MessageFilter{})
+	_, err = ps.Subscribe(context.Background(), "non-existent", "sub-2", handler, &patternx.MessageFilter{})
 	assert.Error(t, err)
 
 	// Test nil handler
-	_, err = ps.Subscribe(context.Background(), "test-topic", "sub-3", nil, &pubsub.MessageFilter{})
+	_, err = ps.Subscribe(context.Background(), "test-topic", "sub-3", nil, &patternx.MessageFilter{})
 	assert.Error(t, err)
 }
 
 func TestPublish(t *testing.T) {
 	store := NewMockStore()
-	config := pubsub.DefaultConfig(store)
-	ps, err := pubsub.NewPubSub(config)
+	config := patternx.DefaultConfigPubSub(store)
+	ps, err := patternx.NewPubSub(config)
 	require.NoError(t, err)
 	defer ps.Close(context.Background())
 
@@ -135,17 +134,17 @@ func TestPublish(t *testing.T) {
 	err = ps.CreateTopic(context.Background(), "test-topic")
 	require.NoError(t, err)
 
-	var receivedMessages []*pubsub.Message
+	var receivedMessages []*patternx.MessagePubSub
 	var mu sync.Mutex
 
-	handler := func(ctx context.Context, msg *pubsub.Message) error {
+	handler := func(ctx context.Context, msg *patternx.MessagePubSub) error {
 		mu.Lock()
 		defer mu.Unlock()
 		receivedMessages = append(receivedMessages, msg)
 		return nil
 	}
 
-	_, err = ps.Subscribe(context.Background(), "test-topic", "sub-1", handler, &pubsub.MessageFilter{})
+	_, err = ps.Subscribe(context.Background(), "test-topic", "sub-1", handler, &patternx.MessageFilter{})
 	require.NoError(t, err)
 
 	// Test successful publish
@@ -177,23 +176,23 @@ func TestPublish(t *testing.T) {
 
 func TestMessageFiltering(t *testing.T) {
 	store := NewMockStore()
-	config := pubsub.DefaultConfig(store)
-	ps, err := pubsub.NewPubSub(config)
+	config := patternx.DefaultConfigPubSub(store)
+	ps, err := patternx.NewPubSub(config)
 	require.NoError(t, err)
 	defer ps.Close(context.Background())
 
 	err = ps.CreateTopic(context.Background(), "test-topic")
 	require.NoError(t, err)
 
-	var receivedMessages []*pubsub.Message
+	var receivedMessages []*patternx.MessagePubSub
 	var mu sync.Mutex
 
 	// Create subscription with header filter
-	filter := &pubsub.MessageFilter{
+	filter := &patternx.MessageFilter{
 		Headers: map[string]string{"priority": "high"},
 	}
 
-	handler := func(ctx context.Context, msg *pubsub.Message) error {
+	handler := func(ctx context.Context, msg *patternx.MessagePubSub) error {
 		mu.Lock()
 		defer mu.Unlock()
 		receivedMessages = append(receivedMessages, msg)
@@ -230,11 +229,11 @@ func TestMessageFiltering(t *testing.T) {
 
 func TestRetryMechanism(t *testing.T) {
 	store := NewMockStore()
-	config := pubsub.DefaultConfig(store)
+	config := patternx.DefaultConfigPubSub(store)
 	config.MaxRetryAttempts = 2
 	config.RetryDelay = 10 * time.Millisecond
 
-	ps, err := pubsub.NewPubSub(config)
+	ps, err := patternx.NewPubSub(config)
 	require.NoError(t, err)
 	defer ps.Close(context.Background())
 
@@ -244,7 +243,7 @@ func TestRetryMechanism(t *testing.T) {
 	attemptCount := 0
 	var mu sync.Mutex
 
-	handler := func(ctx context.Context, msg *pubsub.Message) error {
+	handler := func(ctx context.Context, msg *patternx.MessagePubSub) error {
 		mu.Lock()
 		attemptCount++
 		currentAttempt := attemptCount
@@ -256,7 +255,7 @@ func TestRetryMechanism(t *testing.T) {
 		return nil
 	}
 
-	_, err = ps.Subscribe(context.Background(), "test-topic", "sub-1", handler, &pubsub.MessageFilter{})
+	_, err = ps.Subscribe(context.Background(), "test-topic", "sub-1", handler, &patternx.MessageFilter{})
 	require.NoError(t, err)
 
 	data := []byte("test message")
@@ -273,10 +272,10 @@ func TestRetryMechanism(t *testing.T) {
 
 func TestConcurrentPublishing(t *testing.T) {
 	store := NewMockStore()
-	config := pubsub.DefaultConfig(store)
+	config := patternx.DefaultConfigPubSub(store)
 	config.BufferSize = 1000
 
-	ps, err := pubsub.NewPubSub(config)
+	ps, err := patternx.NewPubSub(config)
 	require.NoError(t, err)
 	defer ps.Close(context.Background())
 
@@ -286,14 +285,14 @@ func TestConcurrentPublishing(t *testing.T) {
 	var receivedCount int64
 	var mu sync.Mutex
 
-	handler := func(ctx context.Context, msg *pubsub.Message) error {
+	handler := func(ctx context.Context, msg *patternx.MessagePubSub) error {
 		mu.Lock()
 		defer mu.Unlock()
 		receivedCount++
 		return nil
 	}
 
-	_, err = ps.Subscribe(context.Background(), "test-topic", "sub-1", handler, &pubsub.MessageFilter{})
+	_, err = ps.Subscribe(context.Background(), "test-topic", "sub-1", handler, &patternx.MessageFilter{})
 	require.NoError(t, err)
 
 	// Publish messages concurrently
@@ -322,8 +321,8 @@ func TestConcurrentPublishing(t *testing.T) {
 
 func TestMultipleSubscribers(t *testing.T) {
 	store := NewMockStore()
-	config := pubsub.DefaultConfig(store)
-	ps, err := pubsub.NewPubSub(config)
+	config := patternx.DefaultConfigPubSub(store)
+	ps, err := patternx.NewPubSub(config)
 	require.NoError(t, err)
 	defer ps.Close(context.Background())
 
@@ -334,24 +333,24 @@ func TestMultipleSubscribers(t *testing.T) {
 	var subscriber2Count int64
 	var mu sync.Mutex
 
-	handler1 := func(ctx context.Context, msg *pubsub.Message) error {
+	handler1 := func(ctx context.Context, msg *patternx.MessagePubSub) error {
 		mu.Lock()
 		defer mu.Unlock()
 		subscriber1Count++
 		return nil
 	}
 
-	handler2 := func(ctx context.Context, msg *pubsub.Message) error {
+	handler2 := func(ctx context.Context, msg *patternx.MessagePubSub) error {
 		mu.Lock()
 		defer mu.Unlock()
 		subscriber2Count++
 		return nil
 	}
 
-	_, err = ps.Subscribe(context.Background(), "test-topic", "sub-1", handler1, &pubsub.MessageFilter{})
+	_, err = ps.Subscribe(context.Background(), "test-topic", "sub-1", handler1, &patternx.MessageFilter{})
 	require.NoError(t, err)
 
-	_, err = ps.Subscribe(context.Background(), "test-topic", "sub-2", handler2, &pubsub.MessageFilter{})
+	_, err = ps.Subscribe(context.Background(), "test-topic", "sub-2", handler2, &patternx.MessageFilter{})
 	require.NoError(t, err)
 
 	// Publish message
@@ -370,18 +369,18 @@ func TestMultipleSubscribers(t *testing.T) {
 
 func TestGracefulShutdown(t *testing.T) {
 	store := NewMockStore()
-	config := pubsub.DefaultConfig(store)
-	ps, err := pubsub.NewPubSub(config)
+	config := patternx.DefaultConfigPubSub(store)
+	ps, err := patternx.NewPubSub(config)
 	require.NoError(t, err)
 
 	err = ps.CreateTopic(context.Background(), "test-topic")
 	require.NoError(t, err)
 
-	handler := func(ctx context.Context, msg *pubsub.Message) error {
+	handler := func(ctx context.Context, msg *patternx.MessagePubSub) error {
 		return nil
 	}
 
-	_, err = ps.Subscribe(context.Background(), "test-topic", "sub-1", handler, &pubsub.MessageFilter{})
+	_, err = ps.Subscribe(context.Background(), "test-topic", "sub-1", handler, &patternx.MessageFilter{})
 	require.NoError(t, err)
 
 	// Publish a message
@@ -400,8 +399,8 @@ func TestGracefulShutdown(t *testing.T) {
 
 func TestMessagePersistence(t *testing.T) {
 	store := NewMockStore()
-	config := pubsub.DefaultConfig(store)
-	ps, err := pubsub.NewPubSub(config)
+	config := patternx.DefaultConfigPubSub(store)
+	ps, err := patternx.NewPubSub(config)
 	require.NoError(t, err)
 	defer ps.Close(context.Background())
 
@@ -424,9 +423,9 @@ func TestMessagePersistence(t *testing.T) {
 
 func TestHighReliabilityConfig(t *testing.T) {
 	store := NewMockStore()
-	config := pubsub.HighReliabilityConfig(store)
+	config := patternx.HighReliabilityConfigPubSub(store)
 
-	ps, err := pubsub.NewPubSub(config)
+	ps, err := patternx.NewPubSub(config)
 	require.NoError(t, err)
 	defer ps.Close(context.Background())
 
@@ -438,8 +437,8 @@ func TestHighReliabilityConfig(t *testing.T) {
 
 func TestMessageValidation(t *testing.T) {
 	store := NewMockStore()
-	config := pubsub.DefaultConfig(store)
-	ps, err := pubsub.NewPubSub(config)
+	config := patternx.DefaultConfigPubSub(store)
+	ps, err := patternx.NewPubSub(config)
 	require.NoError(t, err)
 	defer ps.Close(context.Background())
 
@@ -461,8 +460,8 @@ func TestMessageValidation(t *testing.T) {
 
 func TestContextCancellation(t *testing.T) {
 	store := NewMockStore()
-	config := pubsub.DefaultConfig(store)
-	ps, err := pubsub.NewPubSub(config)
+	config := patternx.DefaultConfigPubSub(store)
+	ps, err := patternx.NewPubSub(config)
 	require.NoError(t, err)
 	defer ps.Close(context.Background())
 
@@ -480,8 +479,8 @@ func TestContextCancellation(t *testing.T) {
 
 func TestStatsCollection(t *testing.T) {
 	store := NewMockStore()
-	config := pubsub.DefaultConfig(store)
-	ps, err := pubsub.NewPubSub(config)
+	config := patternx.DefaultConfigPubSub(store)
+	ps, err := patternx.NewPubSub(config)
 	require.NoError(t, err)
 	defer ps.Close(context.Background())
 
@@ -494,11 +493,11 @@ func TestStatsCollection(t *testing.T) {
 	err = ps.CreateTopic(context.Background(), "test-topic")
 	require.NoError(t, err)
 
-	handler := func(ctx context.Context, msg *pubsub.Message) error {
+	handler := func(ctx context.Context, msg *patternx.MessagePubSub) error {
 		return nil
 	}
 
-	_, err = ps.Subscribe(context.Background(), "test-topic", "sub-1", handler, &pubsub.MessageFilter{})
+	_, err = ps.Subscribe(context.Background(), "test-topic", "sub-1", handler, &patternx.MessageFilter{})
 	require.NoError(t, err)
 
 	err = ps.Publish(context.Background(), "test-topic", []byte("test"), nil)
@@ -521,19 +520,19 @@ func TestStatsCollection(t *testing.T) {
 
 func BenchmarkPublish(b *testing.B) {
 	store := NewMockStore()
-	config := pubsub.DefaultConfig(store)
-	ps, err := pubsub.NewPubSub(config)
+	config := patternx.DefaultConfigPubSub(store)
+	ps, err := patternx.NewPubSub(config)
 	require.NoError(b, err)
 	defer ps.Close(context.Background())
 
 	err = ps.CreateTopic(context.Background(), "benchmark-topic")
 	require.NoError(b, err)
 
-	handler := func(ctx context.Context, msg *pubsub.Message) error {
+	handler := func(ctx context.Context, msg *patternx.MessagePubSub) error {
 		return nil
 	}
 
-	_, err = ps.Subscribe(context.Background(), "benchmark-topic", "sub-1", handler, &pubsub.MessageFilter{})
+	_, err = ps.Subscribe(context.Background(), "benchmark-topic", "sub-1", handler, &patternx.MessageFilter{})
 	require.NoError(b, err)
 
 	data := []byte("benchmark message")
@@ -550,20 +549,20 @@ func BenchmarkPublish(b *testing.B) {
 
 func BenchmarkConcurrentPublish(b *testing.B) {
 	store := NewMockStore()
-	config := pubsub.DefaultConfig(store)
+	config := patternx.DefaultConfigPubSub(store)
 	config.BufferSize = 10000
-	ps, err := pubsub.NewPubSub(config)
+	ps, err := patternx.NewPubSub(config)
 	require.NoError(b, err)
 	defer ps.Close(context.Background())
 
 	err = ps.CreateTopic(context.Background(), "benchmark-topic")
 	require.NoError(b, err)
 
-	handler := func(ctx context.Context, msg *pubsub.Message) error {
+	handler := func(ctx context.Context, msg *patternx.MessagePubSub) error {
 		return nil
 	}
 
-	_, err = ps.Subscribe(context.Background(), "benchmark-topic", "sub-1", handler, &pubsub.MessageFilter{})
+	_, err = ps.Subscribe(context.Background(), "benchmark-topic", "sub-1", handler, &patternx.MessageFilter{})
 	require.NoError(b, err)
 
 	data := []byte("benchmark message")

@@ -1,4 +1,4 @@
-package lock
+package patternx
 
 import (
 	"context"
@@ -13,42 +13,24 @@ import (
 	"github.com/seasbee/go-logx"
 )
 
-// Error types for Redlock operations
-var (
-	ErrRedlockClosed         = errors.New("redlock is closed")
-	ErrInvalidConfig         = errors.New("invalid redlock configuration")
-	ErrInvalidResource       = errors.New("invalid resource name")
-	ErrInvalidTTL            = errors.New("invalid TTL duration")
-	ErrInvalidTimeout        = errors.New("invalid timeout duration")
-	ErrLockNotAcquired       = errors.New("lock not acquired")
-	ErrLockAcquisitionFailed = errors.New("lock acquisition failed")
-	ErrLockReleaseFailed     = errors.New("lock release failed")
-	ErrLockExtensionFailed   = errors.New("lock extension failed")
-	ErrQuorumNotReached      = errors.New("quorum not reached")
-	ErrContextCancelled      = errors.New("operation cancelled by context")
-	ErrLockExpired           = errors.New("lock expired")
-	ErrClientUnavailable     = errors.New("client unavailable")
-	ErrInvalidQuorum         = errors.New("invalid quorum value")
-)
-
 // Constants for production constraints
 const (
-	MaxTTLLimit           = 24 * time.Hour
-	MinTTLLimit           = 1 * time.Millisecond
-	MaxTimeoutLimit       = 60 * time.Second
-	MinTimeoutLimit       = 1 * time.Millisecond
-	MaxRetryDelayLimit    = 10 * time.Second
-	MinRetryDelayLimit    = 1 * time.Millisecond
-	MaxRetriesLimit       = 100
-	MinRetriesLimit       = 0
-	MaxDriftFactorLimit   = 0.1
-	MinDriftFactorLimit   = 0.001
-	DefaultRetryDelay     = 100 * time.Millisecond
-	DefaultMaxRetries     = 3
-	DefaultDriftFactor    = 0.01
-	MaxResourceNameLength = 256
-	MinResourceNameLength = 1
-	GracefulShutdownWait  = 5 * time.Second
+	MaxTTLLimitRedlock         = 24 * time.Hour
+	MinTTLLimitRedlock         = 1 * time.Millisecond
+	MaxTimeoutLimitRedlock     = 60 * time.Second
+	MinTimeoutLimitRedlock     = 1 * time.Millisecond
+	MaxRetryDelayLimitRedlock  = 10 * time.Second
+	MinRetryDelayLimitRedlock  = 1 * time.Millisecond
+	MaxRetriesLimitRedlock     = 100
+	MinRetriesLimitRedlock     = 0
+	MaxDriftFactorLimitRedlock = 0.1
+	MinDriftFactorLimitRedlock = 0.001
+	DefaultRetryDelayRedlock   = 100 * time.Millisecond
+	DefaultMaxRetriesRedlock   = 3
+	DefaultDriftFactorRedlock  = 0.01
+	MaxResourceNameLength      = 256
+	MinResourceNameLength      = 1
+	GracefulShutdownWait       = 5 * time.Second
 )
 
 // Redlock implements a distributed lock using the Redlock algorithm with production-ready features
@@ -62,7 +44,6 @@ type Redlock struct {
 
 	// State management
 	closed int32 // atomic flag for graceful shutdown
-	mu     sync.RWMutex
 
 	// Metrics
 	metrics *RedlockMetrics
@@ -124,9 +105,9 @@ func DefaultConfig(clients []LockClient) *Config {
 	return &Config{
 		Clients:       clients,
 		Quorum:        0, // Will be calculated as majority
-		RetryDelay:    DefaultRetryDelay,
-		MaxRetries:    DefaultMaxRetries,
-		DriftFactor:   DefaultDriftFactor,
+		RetryDelay:    DefaultRetryDelayRedlock,
+		MaxRetries:    DefaultMaxRetriesRedlock,
+		DriftFactor:   DefaultDriftFactorRedlock,
 		EnableMetrics: true,
 	}
 }
@@ -171,7 +152,7 @@ func EnterpriseConfig(clients []LockClient) *Config {
 func NewRedlock(config *Config) (*Redlock, error) {
 	// Validate configuration
 	if err := validateRedlockConfig(config); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidConfig, err)
+		return nil, fmt.Errorf("%w: %v", ErrRedlockInvalidConfig, err)
 	}
 
 	// Apply defaults for missing values
@@ -254,7 +235,7 @@ func (rl *Redlock) LockWithRetry(ctx context.Context, resource string, ttl time.
 
 		// If this is the last attempt, return error
 		if attempt == maxRetries {
-			return nil, fmt.Errorf("%w after %d attempts: %v", ErrLockAcquisitionFailed, maxRetries+1, err)
+			return nil, fmt.Errorf("%w after %d attempts: %v", ErrRedlockLockAcquisitionFailed, maxRetries+1, err)
 		}
 
 		// Wait before retry with context awareness
@@ -267,7 +248,7 @@ func (rl *Redlock) LockWithRetry(ctx context.Context, resource string, ttl time.
 		}
 	}
 
-	return nil, ErrLockAcquisitionFailed
+	return nil, ErrRedlockLockAcquisitionFailed
 }
 
 // tryAcquireLockWithTimeout attempts to acquire the lock on all clients with timeout
@@ -298,7 +279,7 @@ func (rl *Redlock) tryAcquireLockWithTimeout(ctx context.Context, resource, valu
 	if successCount < rl.quorum {
 		// Release locks on clients where we succeeded
 		rl.releaseLocksWithTimeout(ctx, resource, value, successCount)
-		return nil, fmt.Errorf("%w: %d/%d clients, last error: %w", ErrQuorumNotReached, successCount, rl.quorum, lastError)
+		return nil, fmt.Errorf("%w: %d/%d clients, last error: %w", ErrRedlockQuorumNotReached, successCount, rl.quorum, lastError)
 	}
 
 	// Calculate validity time with improved clock drift handling
@@ -308,7 +289,7 @@ func (rl *Redlock) tryAcquireLockWithTimeout(ctx context.Context, resource, valu
 	if validityTime <= 0 {
 		// Release locks if validity time is negative
 		rl.releaseLocksWithTimeout(ctx, resource, value, successCount)
-		return nil, fmt.Errorf("%w: validity time is negative", ErrLockExpired)
+		return nil, fmt.Errorf("%w: validity time is negative", ErrRedlockLockExpired)
 	}
 
 	lock := &Lock{
@@ -383,12 +364,12 @@ func (rl *Redlock) releaseLockWithTimeout(ctx context.Context, client LockClient
 func (l *Lock) Unlock(ctx context.Context) error {
 	// Check if lock is acquired atomically
 	if atomic.LoadInt32(&l.acquired) == 0 {
-		return ErrLockNotAcquired
+		return ErrRedlockLockNotAcquired
 	}
 
 	// Set acquired flag to false atomically
 	if !atomic.CompareAndSwapInt32(&l.acquired, 1, 0) {
-		return ErrLockNotAcquired
+		return ErrRedlockLockNotAcquired
 	}
 
 	// Release lock on all clients with timeout
@@ -425,7 +406,7 @@ func (l *Lock) Unlock(ctx context.Context) error {
 		logx.Int("released", released))
 
 	if released == 0 {
-		return fmt.Errorf("%w: no clients released", ErrLockReleaseFailed)
+		return fmt.Errorf("%w: no clients released", ErrRedlockLockReleaseFailed)
 	}
 
 	return nil
@@ -440,7 +421,7 @@ func (l *Lock) Extend(ctx context.Context, ttl time.Duration) error {
 
 	// Check if lock is acquired atomically
 	if atomic.LoadInt32(&l.acquired) == 0 {
-		return ErrLockNotAcquired
+		return ErrRedlockLockNotAcquired
 	}
 
 	// Try to extend lock on all clients with timeout
@@ -477,7 +458,7 @@ func (l *Lock) Extend(ctx context.Context, ttl time.Duration) error {
 			atomic.AddInt64(&l.redlock.metrics.FailedExtensions, 1)
 		}
 
-		return fmt.Errorf("%w: %d/%d clients", ErrLockExtensionFailed, successCount, l.redlock.quorum)
+		return fmt.Errorf("%w: %d/%d clients", ErrRedlockLockExtensionFailed, successCount, l.redlock.quorum)
 	}
 
 	// Update lock TTL
@@ -673,26 +654,26 @@ func validateRedlockConfig(config *Config) error {
 	}
 
 	if config.Quorum < 0 {
-		return fmt.Errorf("%w: quorum cannot be negative", ErrInvalidQuorum)
+		return fmt.Errorf("%w: quorum cannot be negative", ErrRedlockInvalidQuorum)
 	}
 
 	if config.Quorum > len(config.Clients) {
-		return fmt.Errorf("%w: quorum cannot be greater than number of clients", ErrInvalidQuorum)
+		return fmt.Errorf("%w: quorum cannot be greater than number of clients", ErrRedlockInvalidQuorum)
 	}
 
-	if config.RetryDelay < MinRetryDelayLimit || config.RetryDelay > MaxRetryDelayLimit {
+	if config.RetryDelay < MinRetryDelayLimitRedlock || config.RetryDelay > MaxRetryDelayLimitRedlock {
 		return fmt.Errorf("retry delay must be between %v and %v, got %v",
-			MinRetryDelayLimit, MaxRetryDelayLimit, config.RetryDelay)
+			MinRetryDelayLimitRedlock, MaxRetryDelayLimitRedlock, config.RetryDelay)
 	}
 
-	if config.MaxRetries < MinRetriesLimit || config.MaxRetries > MaxRetriesLimit {
+	if config.MaxRetries < MinRetriesLimitRedlock || config.MaxRetries > MaxRetriesLimitRedlock {
 		return fmt.Errorf("max retries must be between %d and %d, got %d",
-			MinRetriesLimit, MaxRetriesLimit, config.MaxRetries)
+			MinRetriesLimitRedlock, MaxRetriesLimitRedlock, config.MaxRetries)
 	}
 
-	if config.DriftFactor < MinDriftFactorLimit || config.DriftFactor > MaxDriftFactorLimit {
+	if config.DriftFactor < MinDriftFactorLimitRedlock || config.DriftFactor > MaxDriftFactorLimitRedlock {
 		return fmt.Errorf("drift factor must be between %f and %f, got %f",
-			MinDriftFactorLimit, MaxDriftFactorLimit, config.DriftFactor)
+			MinDriftFactorLimitRedlock, MaxDriftFactorLimitRedlock, config.DriftFactor)
 	}
 
 	return nil
@@ -701,13 +682,13 @@ func validateRedlockConfig(config *Config) error {
 // applyRedlockDefaults applies default values to configuration
 func applyRedlockDefaults(config *Config) {
 	if config.RetryDelay <= 0 {
-		config.RetryDelay = DefaultRetryDelay
+		config.RetryDelay = DefaultRetryDelayRedlock
 	}
 	if config.MaxRetries <= 0 {
-		config.MaxRetries = DefaultMaxRetries
+		config.MaxRetries = DefaultMaxRetriesRedlock
 	}
 	if config.DriftFactor <= 0 {
-		config.DriftFactor = DefaultDriftFactor
+		config.DriftFactor = DefaultDriftFactorRedlock
 	}
 }
 
@@ -726,7 +707,7 @@ func validateLockInputs(ctx context.Context, resource string, ttl time.Duration,
 	}
 
 	if retryDelay < 0 {
-		return fmt.Errorf("%w: retry delay cannot be negative", ErrInvalidTimeout)
+		return fmt.Errorf("%w: retry delay cannot be negative", ErrRedlockInvalidTimeout)
 	}
 
 	if maxRetries < 0 {
@@ -739,15 +720,15 @@ func validateLockInputs(ctx context.Context, resource string, ttl time.Duration,
 // validateResource validates resource name
 func validateResource(resource string) error {
 	if resource == "" {
-		return fmt.Errorf("%w: resource name cannot be empty", ErrInvalidResource)
+		return fmt.Errorf("%w: resource name cannot be empty", ErrRedlockInvalidResource)
 	}
 
 	if len(resource) > MaxResourceNameLength {
-		return fmt.Errorf("%w: resource name too long (max %d characters)", ErrInvalidResource, MaxResourceNameLength)
+		return fmt.Errorf("%w: resource name too long (max %d characters)", ErrRedlockInvalidResource, MaxResourceNameLength)
 	}
 
 	if len(resource) < MinResourceNameLength {
-		return fmt.Errorf("%w: resource name too short (min %d characters)", ErrInvalidResource, MinResourceNameLength)
+		return fmt.Errorf("%w: resource name too short (min %d characters)", ErrRedlockInvalidResource, MinResourceNameLength)
 	}
 
 	return nil
@@ -755,18 +736,18 @@ func validateResource(resource string) error {
 
 // validateTTL validates TTL duration
 func validateTTL(ttl time.Duration) error {
-	if ttl < MinTTLLimit || ttl > MaxTTLLimit {
+	if ttl < MinTTLLimitRedlock || ttl > MaxTTLLimitRedlock {
 		return fmt.Errorf("%w: TTL must be between %v and %v, got %v",
-			ErrInvalidTTL, MinTTLLimit, MaxTTLLimit, ttl)
+			ErrRedlockInvalidTTL, MinTTLLimitRedlock, MaxTTLLimitRedlock, ttl)
 	}
 	return nil
 }
 
 // validateTimeout validates timeout duration
 func validateTimeout(timeout time.Duration) error {
-	if timeout < MinTimeoutLimit || timeout > MaxTimeoutLimit {
+	if timeout < MinTimeoutLimitRedlock || timeout > MaxTimeoutLimitRedlock {
 		return fmt.Errorf("%w: timeout must be between %v and %v, got %v",
-			ErrInvalidTimeout, MinTimeoutLimit, MaxTimeoutLimit, timeout)
+			ErrRedlockInvalidTimeout, MinTimeoutLimitRedlock, MaxTimeoutLimitRedlock, timeout)
 	}
 	return nil
 }

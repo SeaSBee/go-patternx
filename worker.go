@@ -1,4 +1,4 @@
-package pool
+package patternx
 
 import (
 	"context"
@@ -9,9 +9,9 @@ import (
 
 // Worker represents a worker in the pool
 type Worker struct {
-	ID       int
+	id       int
 	pool     *WorkerPool
-	jobChan  chan Job
+	jobChan  chan JobPool
 	stopChan chan struct{}
 	stats    *WorkerStats
 	active   int32
@@ -92,11 +92,11 @@ func (w *Worker) start() {
 }
 
 // processJob processes a single job with comprehensive error handling
-func (w *Worker) processJob(job Job) JobResult {
+func (w *Worker) processJob(job JobPool) JobResultPool {
 	start := time.Now()
-	result := JobResult{
+	result := JobResultPool{
 		JobID:    job.ID,
-		WorkerID: w.ID,
+		WorkerID: w.id,
 	}
 
 	// Validate job
@@ -128,7 +128,7 @@ func (w *Worker) processJob(job Job) JobResult {
 }
 
 // executeJob executes the job with proper error handling and panic recovery
-func (w *Worker) executeJob(ctx context.Context, job Job) (interface{}, error) {
+func (w *Worker) executeJob(ctx context.Context, job JobPool) (interface{}, error) {
 	// Check if context is already cancelled
 	select {
 	case <-ctx.Done():
@@ -170,14 +170,14 @@ func (w *Worker) executeJob(ctx context.Context, job Job) (interface{}, error) {
 }
 
 // updateJobStats updates worker statistics atomically
-func (w *Worker) updateJobStats(result JobResult) {
+func (w *Worker) updateJobStats(result JobResultPool) {
 	w.stats.JobsProcessed.Add(1)
 	if result.Error != nil {
 		w.stats.JobsFailed.Add(1)
 	}
 
 	// Update total job time
-	w.stats.TotalJobTime.Add(int64(result.Duration))
+	w.stats.TotalJobTime.Add(result.Duration.Nanoseconds())
 
 	// Update last job time
 	w.stats.LastJobTime.Store(time.Now())

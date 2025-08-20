@@ -1,4 +1,4 @@
-package cb
+package patternx
 
 import (
 	"context"
@@ -11,28 +11,22 @@ import (
 
 // Error types for circuit breaker operations
 var (
-	ErrCircuitBreakerOpen    = errors.New("circuit breaker is open")
-	ErrCircuitBreakerTimeout = errors.New("circuit breaker operation timeout")
-	ErrInvalidConfig         = errors.New("invalid circuit breaker configuration")
-	ErrInvalidOperation      = errors.New("invalid operation function")
-	ErrContextCancelled      = errors.New("operation cancelled by context")
-	ErrCircuitBreakerForced  = errors.New("circuit breaker is forced open")
-	ErrOperationPanic        = errors.New("operation panicked")
+// Circuit Breaker specific errors are now defined in errors.go
 )
 
 // Constants for production constraints
 const (
-	MaxThresholdLimit   = 10000
-	MinThresholdLimit   = 1
-	MaxTimeoutLimit     = 300 * time.Second
-	MinTimeoutLimit     = 1 * time.Millisecond
-	MaxHalfOpenLimit    = 1000
-	MinHalfOpenLimit    = 1
-	DefaultThreshold    = 5
-	DefaultTimeout      = 30 * time.Second
-	DefaultHalfOpenMax  = 3
-	MaxOperationTimeout = 60 * time.Second
-	MinOperationTimeout = 1 * time.Millisecond
+	MaxThresholdLimitCircuitBreaker   = 10000
+	MinThresholdLimitCircuitBreaker   = 1
+	MaxTimeoutLimitCircuitBreaker     = 300 * time.Second
+	MinTimeoutLimitCircuitBreaker     = 1 * time.Millisecond
+	MaxHalfOpenLimitCircuitBreaker    = 1000
+	MinHalfOpenLimitCircuitBreaker    = 1
+	DefaultThresholdCircuitBreaker    = 5
+	DefaultTimeoutCircuitBreaker      = 30 * time.Second
+	DefaultHalfOpenMaxCircuitBreaker  = 3
+	MaxOperationTimeoutCircuitBreaker = 60 * time.Second
+	MinOperationTimeoutCircuitBreaker = 1 * time.Millisecond
 )
 
 // State represents the circuit breaker state
@@ -43,6 +37,12 @@ const (
 	StateOpen
 	StateHalfOpen
 )
+
+type CircuitBreakerConfig struct {
+	Threshold   int           // Number of failures before opening circuit
+	Timeout     time.Duration // How long to keep circuit open
+	HalfOpenMax int           // Max requests in half-open state
+}
 
 func (s State) String() string {
 	switch s {
@@ -84,24 +84,24 @@ type CircuitBreaker struct {
 }
 
 // Config holds circuit breaker configuration with validation
-type Config struct {
+type ConfigCircuitBreaker struct {
 	Threshold   int           // Number of failures before opening circuit
 	Timeout     time.Duration // How long to keep circuit open
 	HalfOpenMax int           // Max requests in half-open state
 }
 
 // DefaultConfig returns a default circuit breaker configuration
-func DefaultConfig() Config {
-	return Config{
-		Threshold:   DefaultThreshold,
-		Timeout:     DefaultTimeout,
-		HalfOpenMax: DefaultHalfOpenMax,
+func DefaultConfigCircuitBreaker() ConfigCircuitBreaker {
+	return ConfigCircuitBreaker{
+		Threshold:   DefaultThresholdCircuitBreaker,
+		Timeout:     DefaultTimeoutCircuitBreaker,
+		HalfOpenMax: DefaultHalfOpenMaxCircuitBreaker,
 	}
 }
 
 // HighPerformanceConfig returns a high-performance circuit breaker configuration
-func HighPerformanceConfig() Config {
-	return Config{
+func HighPerformanceConfigCircuitBreaker() ConfigCircuitBreaker {
+	return ConfigCircuitBreaker{
 		Threshold:   10,
 		Timeout:     10 * time.Second,
 		HalfOpenMax: 5,
@@ -109,8 +109,8 @@ func HighPerformanceConfig() Config {
 }
 
 // ConservativeConfig returns a conservative circuit breaker configuration
-func ConservativeConfig() Config {
-	return Config{
+func ConservativeConfigCircuitBreaker() ConfigCircuitBreaker {
+	return ConfigCircuitBreaker{
 		Threshold:   3,
 		Timeout:     60 * time.Second,
 		HalfOpenMax: 2,
@@ -118,8 +118,8 @@ func ConservativeConfig() Config {
 }
 
 // EnterpriseConfig returns an enterprise-grade circuit breaker configuration
-func EnterpriseConfig() Config {
-	return Config{
+func EnterpriseConfigCircuitBreaker() ConfigCircuitBreaker {
+	return ConfigCircuitBreaker{
 		Threshold:   20,
 		Timeout:     30 * time.Second,
 		HalfOpenMax: 10,
@@ -127,7 +127,7 @@ func EnterpriseConfig() Config {
 }
 
 // New creates a new circuit breaker with comprehensive validation
-func New(config Config) (*CircuitBreaker, error) {
+func NewCircuitBreaker(config ConfigCircuitBreaker) (*CircuitBreaker, error) {
 	// Validate configuration
 	if err := validateCircuitBreakerConfig(config); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidConfig, err)
@@ -172,7 +172,7 @@ func (cb *CircuitBreaker) Execute(operation func() error) error {
 // ExecuteWithContext runs the operation with context and circuit breaker protection
 func (cb *CircuitBreaker) ExecuteWithContext(ctx context.Context, operation func() error) error {
 	// Validate inputs
-	if err := validateExecuteInputs(ctx, operation); err != nil {
+	if err := validateExecuteInputsCircuitBreaker(ctx, operation); err != nil {
 		return err
 	}
 
@@ -196,7 +196,7 @@ func (cb *CircuitBreaker) ExecuteWithContext(ctx context.Context, operation func
 // ExecuteWithTimeout runs the operation with timeout and circuit breaker protection
 func (cb *CircuitBreaker) ExecuteWithTimeout(timeout time.Duration, operation func() error) error {
 	// Validate timeout
-	if err := validateTimeout(timeout); err != nil {
+	if err := validateTimeoutCircuitBreaker(timeout); err != nil {
 		return err
 	}
 
@@ -432,8 +432,8 @@ func (cb *CircuitBreaker) GetStats() Stats {
 }
 
 // getConfig returns the current configuration
-func (cb *CircuitBreaker) getConfig() Config {
-	return Config{
+func (cb *CircuitBreaker) getConfig() ConfigCircuitBreaker {
+	return ConfigCircuitBreaker{
 		Threshold:   cb.threshold,
 		Timeout:     cb.timeout,
 		HalfOpenMax: cb.halfOpenMax,
@@ -469,7 +469,7 @@ type Stats struct {
 	TotalSuccesses int64
 	TotalTimeouts  int64
 	TotalPanics    int64
-	Config         Config
+	Config         ConfigCircuitBreaker
 }
 
 // IsHealthy returns true if the circuit breaker is in a healthy state
@@ -494,40 +494,40 @@ func (s Stats) SuccessRate() float64 {
 }
 
 // validateCircuitBreakerConfig validates circuit breaker configuration
-func validateCircuitBreakerConfig(config Config) error {
-	if config.Threshold < MinThresholdLimit || config.Threshold > MaxThresholdLimit {
+func validateCircuitBreakerConfig(config ConfigCircuitBreaker) error {
+	if config.Threshold < MinThresholdLimitCircuitBreaker || config.Threshold > MaxThresholdLimitCircuitBreaker {
 		return fmt.Errorf("threshold must be between %d and %d, got %d",
-			MinThresholdLimit, MaxThresholdLimit, config.Threshold)
+			MinThresholdLimitCircuitBreaker, MaxThresholdLimitCircuitBreaker, config.Threshold)
 	}
 
-	if config.Timeout < MinTimeoutLimit || config.Timeout > MaxTimeoutLimit {
+	if config.Timeout < MinTimeoutLimitCircuitBreaker || config.Timeout > MaxTimeoutLimitCircuitBreaker {
 		return fmt.Errorf("timeout must be between %v and %v, got %v",
-			MinTimeoutLimit, MaxTimeoutLimit, config.Timeout)
+			MinTimeoutLimitCircuitBreaker, MaxTimeoutLimitCircuitBreaker, config.Timeout)
 	}
 
-	if config.HalfOpenMax < MinHalfOpenLimit || config.HalfOpenMax > MaxHalfOpenLimit {
+	if config.HalfOpenMax < MinHalfOpenLimitCircuitBreaker || config.HalfOpenMax > MaxHalfOpenLimitCircuitBreaker {
 		return fmt.Errorf("half open max must be between %d and %d, got %d",
-			MinHalfOpenLimit, MaxHalfOpenLimit, config.HalfOpenMax)
+			MinHalfOpenLimitCircuitBreaker, MaxHalfOpenLimitCircuitBreaker, config.HalfOpenMax)
 	}
 
 	return nil
 }
 
 // applyCircuitBreakerDefaults applies default values to configuration
-func applyCircuitBreakerDefaults(config *Config) {
+func applyCircuitBreakerDefaults(config *ConfigCircuitBreaker) {
 	if config.Threshold <= 0 {
-		config.Threshold = DefaultThreshold
+		config.Threshold = DefaultThresholdCircuitBreaker
 	}
 	if config.Timeout <= 0 {
-		config.Timeout = DefaultTimeout
+		config.Timeout = DefaultTimeoutCircuitBreaker
 	}
 	if config.HalfOpenMax <= 0 {
-		config.HalfOpenMax = DefaultHalfOpenMax
+		config.HalfOpenMax = DefaultHalfOpenMaxCircuitBreaker
 	}
 }
 
 // validateExecuteInputs validates inputs for Execute methods
-func validateExecuteInputs(ctx context.Context, operation func() error) error {
+func validateExecuteInputsCircuitBreaker(ctx context.Context, operation func() error) error {
 	if ctx == nil {
 		return errors.New("context cannot be nil")
 	}
@@ -538,10 +538,10 @@ func validateExecuteInputs(ctx context.Context, operation func() error) error {
 }
 
 // validateTimeout validates timeout duration
-func validateTimeout(timeout time.Duration) error {
-	if timeout < MinOperationTimeout || timeout > MaxOperationTimeout {
+func validateTimeoutCircuitBreaker(timeout time.Duration) error {
+	if timeout < MinOperationTimeoutCircuitBreaker || timeout > MaxOperationTimeoutCircuitBreaker {
 		return fmt.Errorf("timeout must be between %v and %v, got %v",
-			MinOperationTimeout, MaxOperationTimeout, timeout)
+			MinOperationTimeoutCircuitBreaker, MaxOperationTimeoutCircuitBreaker, timeout)
 	}
 	return nil
 }

@@ -8,8 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SeaSBee/go-patternx/patternx/bulkhead"
-	"github.com/SeaSBee/go-patternx/patternx/cb"
+	"github.com/SeaSBee/go-patternx"
 )
 
 // MockService simulates a real service that can fail
@@ -59,24 +58,24 @@ func TestBulkheadWithCircuitBreaker(t *testing.T) {
 	service := NewMockService(0.7, 100*time.Millisecond)
 
 	// Create circuit breaker with aggressive settings
-	cbConfig := cb.Config{
+	cbConfig := patternx.ConfigCircuitBreaker{
 		Threshold:   3,
 		Timeout:     200 * time.Millisecond,
 		HalfOpenMax: 2,
 	}
-	circuitBreaker, err := cb.New(cbConfig)
+	circuitBreaker, err := patternx.NewCircuitBreaker(cbConfig)
 	if err != nil {
 		t.Fatalf("Failed to create circuit breaker: %v", err)
 	}
 
 	// Create bulkhead for resource isolation
-	bhConfig := bulkhead.BulkheadConfig{
+	bhConfig := patternx.BulkheadConfig{
 		MaxConcurrentCalls: 5,
 		MaxWaitDuration:    1 * time.Second,
 		MaxQueueSize:       10,
 		HealthThreshold:    0.5,
 	}
-	bulkhead, err := bulkhead.NewBulkhead(bhConfig)
+	bulkhead, err := patternx.NewBulkhead(bhConfig)
 	if err != nil {
 		t.Fatalf("Failed to create bulkhead: %v", err)
 	}
@@ -142,7 +141,7 @@ func TestBulkheadWithCircuitBreaker(t *testing.T) {
 
 	// Verify circuit breaker behavior
 	cbStats := circuitBreaker.GetStats()
-	if cbStats.State == cb.StateOpen && circuitOpenCount == 0 {
+	if cbStats.State == patternx.StateOpen && circuitOpenCount == 0 {
 		t.Error("Circuit breaker is open but no calls were rejected")
 	}
 
@@ -176,24 +175,24 @@ func TestBulkheadCircuitBreakerRecovery(t *testing.T) {
 	service := NewMockService(0.9, 50*time.Millisecond)
 
 	// Create circuit breaker
-	cbConfig := cb.Config{
+	cbConfig := patternx.ConfigCircuitBreaker{
 		Threshold:   2,
 		Timeout:     100 * time.Millisecond,
 		HalfOpenMax: 1,
 	}
-	circuitBreaker, err := cb.New(cbConfig)
+	circuitBreaker, err := patternx.NewCircuitBreaker(cbConfig)
 	if err != nil {
 		t.Fatalf("Failed to create circuit breaker: %v", err)
 	}
 
 	// Create bulkhead
-	bhConfig := bulkhead.BulkheadConfig{
+	bhConfig := patternx.BulkheadConfig{
 		MaxConcurrentCalls: 3,
 		MaxWaitDuration:    500 * time.Millisecond,
 		MaxQueueSize:       5,
 		HealthThreshold:    0.5,
 	}
-	bulkhead, err := bulkhead.NewBulkhead(bhConfig)
+	bulkhead, err := patternx.NewBulkhead(bhConfig)
 	if err != nil {
 		t.Fatalf("Failed to create bulkhead: %v", err)
 	}
@@ -214,7 +213,7 @@ func TestBulkheadCircuitBreakerRecovery(t *testing.T) {
 
 	// Verify circuit breaker is open
 	cbStats := circuitBreaker.GetStats()
-	if cbStats.State != cb.StateOpen {
+	if cbStats.State != patternx.StateOpen {
 		t.Error("Circuit breaker should be open")
 	}
 
@@ -255,7 +254,7 @@ func TestBulkheadCircuitBreakerRecovery(t *testing.T) {
 
 	// Verify recovery
 	finalStats := circuitBreaker.GetStats()
-	if finalStats.State == cb.StateClosed {
+	if finalStats.State == patternx.StateClosed {
 		t.Log("Circuit breaker successfully recovered to closed state")
 	} else {
 		t.Logf("Circuit breaker state: %s", finalStats.State)
@@ -273,24 +272,24 @@ func TestBulkheadCircuitBreakerStress(t *testing.T) {
 	service := NewMockService(0.3, 200*time.Millisecond)
 
 	// Create circuit breaker
-	cbConfig := cb.Config{
+	cbConfig := patternx.ConfigCircuitBreaker{
 		Threshold:   5,
 		Timeout:     1 * time.Second,
 		HalfOpenMax: 3,
 	}
-	circuitBreaker, err := cb.New(cbConfig)
+	circuitBreaker, err := patternx.NewCircuitBreaker(cbConfig)
 	if err != nil {
 		t.Fatalf("Failed to create circuit breaker: %v", err)
 	}
 
 	// Create bulkhead with limited resources
-	bhConfig := bulkhead.BulkheadConfig{
+	bhConfig := patternx.BulkheadConfig{
 		MaxConcurrentCalls: 2,
 		MaxWaitDuration:    300 * time.Millisecond,
 		MaxQueueSize:       3,
 		HealthThreshold:    0.5,
 	}
-	bulkhead, err := bulkhead.NewBulkhead(bhConfig)
+	bulkhead, err := patternx.NewBulkhead(bhConfig)
 	if err != nil {
 		t.Fatalf("Failed to create bulkhead: %v", err)
 	}

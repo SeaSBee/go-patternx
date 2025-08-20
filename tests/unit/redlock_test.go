@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SeaSBee/go-patternx/patternx/lock"
+	"github.com/SeaSBee/go-patternx"
 )
 
 // MockLockClient implements LockClient interface for testing
@@ -131,13 +131,13 @@ func (m *MockLockClient) Eval(ctx context.Context, script string, keys []string,
 
 func TestNewRedlock(t *testing.T) {
 	// Test with valid configuration
-	clients := []lock.LockClient{
+	clients := []patternx.LockClient{
 		NewMockLockClient(false, 0),
 		NewMockLockClient(false, 0),
 		NewMockLockClient(false, 0),
 	}
 
-	config := &lock.Config{
+	config := &patternx.Config{
 		Clients:     clients,
 		Quorum:      2,
 		RetryDelay:  100 * time.Millisecond,
@@ -145,7 +145,7 @@ func TestNewRedlock(t *testing.T) {
 		DriftFactor: 0.01,
 	}
 
-	rl, err := lock.NewRedlock(config)
+	rl, err := patternx.NewRedlock(config)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -156,48 +156,48 @@ func TestNewRedlock(t *testing.T) {
 }
 
 func TestNewRedlockNoClients(t *testing.T) {
-	config := &lock.Config{
-		Clients: []lock.LockClient{},
+	config := &patternx.Config{
+		Clients: []patternx.LockClient{},
 	}
 
-	_, err := lock.NewRedlock(config)
+	_, err := patternx.NewRedlock(config)
 	if err == nil {
 		t.Error("Expected error when no clients provided")
 	}
 }
 
 func TestNewRedlockInvalidQuorum(t *testing.T) {
-	clients := []lock.LockClient{
+	clients := []patternx.LockClient{
 		NewMockLockClient(false, 0),
 		NewMockLockClient(false, 0),
 	}
 
-	config := &lock.Config{
+	config := &patternx.Config{
 		Clients: clients,
 		Quorum:  5, // Greater than number of clients
 	}
 
-	_, err := lock.NewRedlock(config)
+	_, err := patternx.NewRedlock(config)
 	if err == nil {
 		t.Error("Expected error when quorum > number of clients")
 	}
 }
 
 func TestNewRedlockDefaultQuorum(t *testing.T) {
-	clients := []lock.LockClient{
+	clients := []patternx.LockClient{
 		NewMockLockClient(false, 0),
 		NewMockLockClient(false, 0),
 		NewMockLockClient(false, 0),
 	}
 
-	config := &lock.Config{
+	config := &patternx.Config{
 		Clients:     clients,
 		Quorum:      0, // Should default to majority
 		RetryDelay:  100 * time.Millisecond,
 		DriftFactor: 0.01,
 	}
 
-	rl, err := lock.NewRedlock(config)
+	rl, err := patternx.NewRedlock(config)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -209,13 +209,13 @@ func TestNewRedlockDefaultQuorum(t *testing.T) {
 }
 
 func TestRedlockLock(t *testing.T) {
-	clients := []lock.LockClient{
+	clients := []patternx.LockClient{
 		NewMockLockClient(false, 0),
 		NewMockLockClient(false, 0),
 		NewMockLockClient(false, 0),
 	}
 
-	config := &lock.Config{
+	config := &patternx.Config{
 		Clients:       clients,
 		Quorum:        2,
 		RetryDelay:    100 * time.Millisecond,
@@ -224,7 +224,7 @@ func TestRedlockLock(t *testing.T) {
 		EnableMetrics: true,
 	}
 
-	rl, err := lock.NewRedlock(config)
+	rl, err := patternx.NewRedlock(config)
 	if err != nil {
 		t.Fatalf("Failed to create Redlock: %v", err)
 	}
@@ -258,13 +258,13 @@ func TestRedlockLock(t *testing.T) {
 
 func TestRedlockLockWithRetry(t *testing.T) {
 	// Create clients where first attempt fails, second succeeds
-	clients := []lock.LockClient{
+	clients := []patternx.LockClient{
 		NewMockLockClient(false, 0),
 		NewMockLockClient(false, 0),
 		NewMockLockClient(false, 0),
 	}
 
-	config := &lock.Config{
+	config := &patternx.Config{
 		Clients:       clients,
 		Quorum:        2,
 		RetryDelay:    10 * time.Millisecond,
@@ -273,7 +273,7 @@ func TestRedlockLockWithRetry(t *testing.T) {
 		EnableMetrics: true,
 	}
 
-	rl, err := lock.NewRedlock(config)
+	rl, err := patternx.NewRedlock(config)
 	if err != nil {
 		t.Fatalf("Failed to create Redlock: %v", err)
 	}
@@ -291,13 +291,13 @@ func TestRedlockLockWithRetry(t *testing.T) {
 
 func TestRedlockLockWithRetryMaxAttempts(t *testing.T) {
 	// Create failing clients
-	clients := []lock.LockClient{
+	clients := []patternx.LockClient{
 		NewMockLockClient(true, 0),
 		NewMockLockClient(true, 0),
 		NewMockLockClient(true, 0),
 	}
 
-	config := &lock.Config{
+	config := &patternx.Config{
 		Clients:       clients,
 		Quorum:        2,
 		RetryDelay:    10 * time.Millisecond,
@@ -306,7 +306,7 @@ func TestRedlockLockWithRetryMaxAttempts(t *testing.T) {
 		EnableMetrics: true,
 	}
 
-	rl, err := lock.NewRedlock(config)
+	rl, err := patternx.NewRedlock(config)
 	if err != nil {
 		t.Fatalf("Failed to create Redlock: %v", err)
 	}
@@ -319,13 +319,13 @@ func TestRedlockLockWithRetryMaxAttempts(t *testing.T) {
 }
 
 func TestRedlockLockContextCancellation(t *testing.T) {
-	clients := []lock.LockClient{
+	clients := []patternx.LockClient{
 		NewMockLockClient(false, 100*time.Millisecond),
 		NewMockLockClient(false, 100*time.Millisecond),
 		NewMockLockClient(false, 100*time.Millisecond),
 	}
 
-	config := &lock.Config{
+	config := &patternx.Config{
 		Clients:       clients,
 		Quorum:        2,
 		RetryDelay:    10 * time.Millisecond,
@@ -334,7 +334,7 @@ func TestRedlockLockContextCancellation(t *testing.T) {
 		EnableMetrics: true,
 	}
 
-	rl, err := lock.NewRedlock(config)
+	rl, err := patternx.NewRedlock(config)
 	if err != nil {
 		t.Fatalf("Failed to create Redlock: %v", err)
 	}
@@ -353,13 +353,13 @@ func TestRedlockLockContextCancellation(t *testing.T) {
 }
 
 func TestRedlockTryLock(t *testing.T) {
-	clients := []lock.LockClient{
+	clients := []patternx.LockClient{
 		NewMockLockClient(false, 0),
 		NewMockLockClient(false, 0),
 		NewMockLockClient(false, 0),
 	}
 
-	config := &lock.Config{
+	config := &patternx.Config{
 		Clients:       clients,
 		Quorum:        2,
 		RetryDelay:    10 * time.Millisecond,
@@ -368,7 +368,7 @@ func TestRedlockTryLock(t *testing.T) {
 		EnableMetrics: true,
 	}
 
-	rl, err := lock.NewRedlock(config)
+	rl, err := patternx.NewRedlock(config)
 	if err != nil {
 		t.Fatalf("Failed to create Redlock: %v", err)
 	}
@@ -385,13 +385,13 @@ func TestRedlockTryLock(t *testing.T) {
 }
 
 func TestRedlockLockWithTimeout(t *testing.T) {
-	clients := []lock.LockClient{
+	clients := []patternx.LockClient{
 		NewMockLockClient(false, 0),
 		NewMockLockClient(false, 0),
 		NewMockLockClient(false, 0),
 	}
 
-	config := &lock.Config{
+	config := &patternx.Config{
 		Clients:       clients,
 		Quorum:        2,
 		RetryDelay:    10 * time.Millisecond,
@@ -400,7 +400,7 @@ func TestRedlockLockWithTimeout(t *testing.T) {
 		EnableMetrics: true,
 	}
 
-	rl, err := lock.NewRedlock(config)
+	rl, err := patternx.NewRedlock(config)
 	if err != nil {
 		t.Fatalf("Failed to create Redlock: %v", err)
 	}
@@ -417,13 +417,13 @@ func TestRedlockLockWithTimeout(t *testing.T) {
 }
 
 func TestRedlockLockWithTimeoutExceeded(t *testing.T) {
-	clients := []lock.LockClient{
+	clients := []patternx.LockClient{
 		NewMockLockClient(false, 200*time.Millisecond),
 		NewMockLockClient(false, 200*time.Millisecond),
 		NewMockLockClient(false, 200*time.Millisecond),
 	}
 
-	config := &lock.Config{
+	config := &patternx.Config{
 		Clients:       clients,
 		Quorum:        2,
 		RetryDelay:    10 * time.Millisecond,
@@ -432,7 +432,7 @@ func TestRedlockLockWithTimeoutExceeded(t *testing.T) {
 		EnableMetrics: true,
 	}
 
-	rl, err := lock.NewRedlock(config)
+	rl, err := patternx.NewRedlock(config)
 	if err != nil {
 		t.Fatalf("Failed to create Redlock: %v", err)
 	}
@@ -449,13 +449,13 @@ func TestRedlockLockWithTimeoutExceeded(t *testing.T) {
 }
 
 func TestLockUnlock(t *testing.T) {
-	clients := []lock.LockClient{
+	clients := []patternx.LockClient{
 		NewMockLockClient(false, 0),
 		NewMockLockClient(false, 0),
 		NewMockLockClient(false, 0),
 	}
 
-	config := &lock.Config{
+	config := &patternx.Config{
 		Clients:       clients,
 		Quorum:        2,
 		RetryDelay:    10 * time.Millisecond,
@@ -464,7 +464,7 @@ func TestLockUnlock(t *testing.T) {
 		EnableMetrics: true,
 	}
 
-	rl, err := lock.NewRedlock(config)
+	rl, err := patternx.NewRedlock(config)
 	if err != nil {
 		t.Fatalf("Failed to create Redlock: %v", err)
 	}
@@ -486,20 +486,20 @@ func TestLockUnlock(t *testing.T) {
 }
 
 func TestLockExtend(t *testing.T) {
-	clients := []lock.LockClient{
+	clients := []patternx.LockClient{
 		NewMockLockClient(false, 0),
 		NewMockLockClient(false, 0),
 		NewMockLockClient(false, 0),
 	}
 
-	config := &lock.Config{
+	config := &patternx.Config{
 		Clients:     clients,
 		Quorum:      2,
 		RetryDelay:  100 * time.Millisecond,
 		DriftFactor: 0.01,
 	}
 
-	rl, err := lock.NewRedlock(config)
+	rl, err := patternx.NewRedlock(config)
 	if err != nil {
 		t.Fatalf("Failed to create Redlock: %v", err)
 	}
@@ -521,20 +521,20 @@ func TestLockExtend(t *testing.T) {
 }
 
 func TestLockExtendNotAcquired(t *testing.T) {
-	clients := []lock.LockClient{
+	clients := []patternx.LockClient{
 		NewMockLockClient(false, 0),
 		NewMockLockClient(false, 0),
 		NewMockLockClient(false, 0),
 	}
 
-	config := &lock.Config{
+	config := &patternx.Config{
 		Clients:     clients,
 		Quorum:      2,
 		RetryDelay:  100 * time.Millisecond,
 		DriftFactor: 0.01,
 	}
 
-	_, err := lock.NewRedlock(config)
+	_, err := patternx.NewRedlock(config)
 	if err != nil {
 		t.Fatalf("Failed to create Redlock: %v", err)
 	}
@@ -547,20 +547,20 @@ func TestLockExtendNotAcquired(t *testing.T) {
 
 func TestLockExtendQuorumFailure(t *testing.T) {
 	// Create clients where some will fail during extend
-	clients := []lock.LockClient{
+	clients := []patternx.LockClient{
 		NewMockLockClient(false, 0),
 		NewMockLockClient(true, 0), // This one will fail
 		NewMockLockClient(true, 0), // This one will fail
 	}
 
-	config := &lock.Config{
+	config := &patternx.Config{
 		Clients:     clients,
 		Quorum:      2,
 		RetryDelay:  100 * time.Millisecond,
 		DriftFactor: 0.01,
 	}
 
-	rl, err := lock.NewRedlock(config)
+	rl, err := patternx.NewRedlock(config)
 	if err != nil {
 		t.Fatalf("Failed to create Redlock: %v", err)
 	}
@@ -579,14 +579,14 @@ func TestLockExtendQuorumFailure(t *testing.T) {
 }
 
 func TestRedlockConfigPresets(t *testing.T) {
-	clients := []lock.LockClient{
+	clients := []patternx.LockClient{
 		NewMockLockClient(false, 0),
 		NewMockLockClient(false, 0),
 		NewMockLockClient(false, 0),
 	}
 
 	// Test default config
-	defaultConfig := lock.DefaultConfig(clients)
+	defaultConfig := patternx.DefaultConfig(clients)
 	if defaultConfig.RetryDelay != 100*time.Millisecond {
 		t.Errorf("Expected default RetryDelay 100ms, got %v", defaultConfig.RetryDelay)
 	}
@@ -598,7 +598,7 @@ func TestRedlockConfigPresets(t *testing.T) {
 	}
 
 	// Test conservative config
-	conservativeConfig := lock.ConservativeConfig(clients)
+	conservativeConfig := patternx.ConservativeConfig(clients)
 	if conservativeConfig.RetryDelay != 500*time.Millisecond {
 		t.Errorf("Expected conservative RetryDelay 500ms, got %v", conservativeConfig.RetryDelay)
 	}
@@ -610,7 +610,7 @@ func TestRedlockConfigPresets(t *testing.T) {
 	}
 
 	// Test aggressive config
-	aggressiveConfig := lock.AggressiveConfig(clients)
+	aggressiveConfig := patternx.AggressiveConfig(clients)
 	if aggressiveConfig.RetryDelay != 50*time.Millisecond {
 		t.Errorf("Expected aggressive RetryDelay 50ms, got %v", aggressiveConfig.RetryDelay)
 	}
@@ -623,13 +623,13 @@ func TestRedlockConfigPresets(t *testing.T) {
 }
 
 func TestRedlockConcurrentAccess(t *testing.T) {
-	clients := []lock.LockClient{
+	clients := []patternx.LockClient{
 		NewMockLockClient(false, 0),
 		NewMockLockClient(false, 0),
 		NewMockLockClient(false, 0),
 	}
 
-	config := &lock.Config{
+	config := &patternx.Config{
 		Clients:       clients,
 		Quorum:        2,
 		RetryDelay:    10 * time.Millisecond,
@@ -638,7 +638,7 @@ func TestRedlockConcurrentAccess(t *testing.T) {
 		EnableMetrics: true,
 	}
 
-	rl, err := lock.NewRedlock(config)
+	rl, err := patternx.NewRedlock(config)
 	if err != nil {
 		t.Fatalf("Failed to create Redlock: %v", err)
 	}
@@ -679,13 +679,13 @@ func TestRedlockConcurrentAccess(t *testing.T) {
 }
 
 func TestLockValueGeneration(t *testing.T) {
-	clients := []lock.LockClient{
+	clients := []patternx.LockClient{
 		NewMockLockClient(false, 0),
 		NewMockLockClient(false, 0),
 		NewMockLockClient(false, 0),
 	}
 
-	config := &lock.Config{
+	config := &patternx.Config{
 		Clients:       clients,
 		Quorum:        2,
 		RetryDelay:    10 * time.Millisecond,
@@ -694,7 +694,7 @@ func TestLockValueGeneration(t *testing.T) {
 		EnableMetrics: true,
 	}
 
-	rl, err := lock.NewRedlock(config)
+	rl, err := patternx.NewRedlock(config)
 	if err != nil {
 		t.Fatalf("Failed to create Redlock: %v", err)
 	}

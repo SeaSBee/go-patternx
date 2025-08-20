@@ -6,22 +6,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SeaSBee/go-patternx/patternx/bloom"
-	"github.com/SeaSBee/go-patternx/patternx/bulkhead"
-	"github.com/SeaSBee/go-patternx/patternx/cb"
-	"github.com/SeaSBee/go-patternx/patternx/dlq"
-	"github.com/SeaSBee/go-patternx/patternx/lock"
-	"github.com/SeaSBee/go-patternx/patternx/pool"
-	"github.com/SeaSBee/go-patternx/patternx/retry"
+	"github.com/SeaSBee/go-patternx"
 )
 
 // BenchmarkBloomFilter tests bloom filter performance
 func BenchmarkBloomFilter(b *testing.B) {
-	config := &bloom.Config{
+	config := &patternx.BloomConfig{
 		ExpectedItems:     10000000, // Much larger capacity
 		FalsePositiveRate: 0.01,
 	}
-	bf, err := bloom.NewBloomFilter(config)
+	bf, err := patternx.NewBloomFilter(config)
 	if err != nil {
 		b.Fatalf("Failed to create bloom filter: %v", err)
 	}
@@ -69,13 +63,13 @@ func BenchmarkBloomFilter(b *testing.B) {
 
 // BenchmarkBulkhead tests bulkhead pattern performance
 func BenchmarkBulkhead(b *testing.B) {
-	config := bulkhead.BulkheadConfig{
+	config := patternx.BulkheadConfig{
 		MaxConcurrentCalls: 10,
 		MaxQueueSize:       100,
 		MaxWaitDuration:    1 * time.Second,
 		HealthThreshold:    0.5,
 	}
-	bh, err := bulkhead.NewBulkhead(config)
+	bh, err := patternx.NewBulkhead(config)
 	if err != nil {
 		b.Fatalf("Failed to create bulkhead: %v", err)
 	}
@@ -125,8 +119,8 @@ func BenchmarkBulkhead(b *testing.B) {
 
 // BenchmarkCircuitBreaker tests circuit breaker performance
 func BenchmarkCircuitBreaker(b *testing.B) {
-	config := cb.DefaultConfig()
-	circuitBreaker, err := cb.New(config)
+	config := patternx.DefaultConfigCircuitBreaker()
+	circuitBreaker, err := patternx.NewCircuitBreaker(config)
 	if err != nil {
 		b.Fatalf("Failed to create circuit breaker: %v", err)
 	}
@@ -177,14 +171,14 @@ func BenchmarkCircuitBreaker(b *testing.B) {
 // BenchmarkDLQ tests dead letter queue performance
 func BenchmarkDLQ(b *testing.B) {
 	// Use custom config with larger queue sizes for benchmarks
-	config := &dlq.Config{
+	config := &patternx.ConfigDLQ{
 		MaxRetries:    3,
 		RetryDelay:    10 * time.Millisecond,
 		WorkerCount:   10,    // More workers for benchmarks
 		QueueSize:     10000, // Much larger queue for benchmarks
 		EnableMetrics: true,
 	}
-	dq, err := dlq.NewDeadLetterQueue(config)
+	dq, err := patternx.NewDeadLetterQueue(config)
 	if err != nil {
 		b.Fatalf("Failed to create DLQ: %v", err)
 	}
@@ -193,7 +187,7 @@ func BenchmarkDLQ(b *testing.B) {
 	b.ResetTimer()
 	b.Run("AddFailedOperation", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			err := dq.AddFailedOperation(&dlq.FailedOperation{
+			err := dq.AddFailedOperation(&patternx.FailedOperation{
 				HandlerType: "test_handler",
 				Data:        fmt.Sprintf("data_%d", i),
 				Error:       "test error",
@@ -211,7 +205,7 @@ func BenchmarkDLQ(b *testing.B) {
 		b.RunParallel(func(pb *testing.PB) {
 			i := 0
 			for pb.Next() {
-				err := dq.AddFailedOperation(&dlq.FailedOperation{
+				err := dq.AddFailedOperation(&patternx.FailedOperation{
 					HandlerType: "test_handler",
 					Data:        fmt.Sprintf("data_%d", i),
 					Error:       "test error",
@@ -229,13 +223,13 @@ func BenchmarkDLQ(b *testing.B) {
 
 // BenchmarkRedlock tests redlock performance
 func BenchmarkRedlock(b *testing.B) {
-	clients := []lock.LockClient{
+	clients := []patternx.LockClient{
 		NewMockLockClient(false, 0),
 		NewMockLockClient(false, 0),
 		NewMockLockClient(false, 0),
 	}
 
-	config := &lock.Config{
+	config := &patternx.Config{
 		Clients:       clients,
 		Quorum:        2,
 		RetryDelay:    10 * time.Millisecond,
@@ -244,7 +238,7 @@ func BenchmarkRedlock(b *testing.B) {
 		EnableMetrics: true,
 	}
 
-	rl, err := lock.NewRedlock(config)
+	rl, err := patternx.NewRedlock(config)
 	if err != nil {
 		b.Fatalf("Failed to create Redlock: %v", err)
 	}
@@ -295,7 +289,7 @@ func BenchmarkRedlock(b *testing.B) {
 // BenchmarkWorkerPool tests worker pool performance
 func BenchmarkWorkerPool(b *testing.B) {
 	// Use custom config with larger queue sizes for benchmarks
-	config := pool.Config{
+	config := patternx.ConfigPool{
 		MinWorkers:         5,
 		MaxWorkers:         20,    // More workers for benchmarks
 		QueueSize:          10000, // Maximum allowed queue size for benchmarks
@@ -307,7 +301,7 @@ func BenchmarkWorkerPool(b *testing.B) {
 		EnableMetrics:      true,
 	}
 
-	wp, err := pool.New(config)
+	wp, err := patternx.NewPool(config)
 	if err != nil {
 		b.Fatalf("Failed to create worker pool: %v", err)
 	}
@@ -317,7 +311,7 @@ func BenchmarkWorkerPool(b *testing.B) {
 	b.Run("Submit", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			job := pool.Job{
+			job := patternx.JobPool{
 				ID:   fmt.Sprintf("job_%d", i),
 				Task: func() (interface{}, error) { return "success", nil },
 			}
@@ -332,7 +326,7 @@ func BenchmarkWorkerPool(b *testing.B) {
 	b.Run("SubmitWithTimeout", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			job := pool.Job{
+			job := patternx.JobPool{
 				ID:      fmt.Sprintf("job_%d", i),
 				Task:    func() (interface{}, error) { return "success", nil },
 				Timeout: 1 * time.Second,
@@ -350,7 +344,7 @@ func BenchmarkWorkerPool(b *testing.B) {
 		b.RunParallel(func(pb *testing.PB) {
 			i := 0
 			for pb.Next() {
-				job := pool.Job{
+				job := patternx.JobPool{
 					ID:   fmt.Sprintf("job_%d", i),
 					Task: func() (interface{}, error) { return "success", nil },
 				}
@@ -367,12 +361,12 @@ func BenchmarkWorkerPool(b *testing.B) {
 
 // BenchmarkRetry tests retry pattern performance
 func BenchmarkRetry(b *testing.B) {
-	policy := retry.DefaultPolicy()
+	policy := patternx.DefaultPolicy()
 
 	b.ResetTimer()
 	b.Run("RetrySuccess", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			err := retry.Retry(policy, func() error {
+			err := patternx.Retry(policy, func() error {
 				time.Sleep(1 * time.Millisecond)
 				return nil
 			})
@@ -384,7 +378,7 @@ func BenchmarkRetry(b *testing.B) {
 
 	b.Run("RetryFailure", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			err := retry.Retry(policy, func() error {
+			err := patternx.Retry(policy, func() error {
 				time.Sleep(1 * time.Millisecond)
 				return fmt.Errorf("intentional failure")
 			})
@@ -396,7 +390,7 @@ func BenchmarkRetry(b *testing.B) {
 
 	b.Run("RetryWithResult", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			result, err := retry.RetryWithResult[string](policy, func() (string, error) {
+			result, err := patternx.RetryWithResult[string](policy, func() (string, error) {
 				time.Sleep(1 * time.Millisecond)
 				return "success", nil
 			})
@@ -413,7 +407,7 @@ func BenchmarkRetry(b *testing.B) {
 		b.ResetTimer()
 		b.RunParallel(func(pb *testing.PB) {
 			for pb.Next() {
-				err := retry.Retry(policy, func() error {
+				err := patternx.Retry(policy, func() error {
 					time.Sleep(1 * time.Millisecond)
 					return nil
 				})
@@ -428,52 +422,52 @@ func BenchmarkRetry(b *testing.B) {
 // BenchmarkIntegration tests integration performance
 func BenchmarkIntegration(b *testing.B) {
 	// Create all patterns
-	bloomConfig := &bloom.Config{
+	bloomConfig := &patternx.BloomConfig{
 		ExpectedItems:     10000,
 		FalsePositiveRate: 0.01,
 	}
-	bf, err := bloom.NewBloomFilter(bloomConfig)
+	bf, err := patternx.NewBloomFilter(bloomConfig)
 	if err != nil {
 		b.Fatalf("Failed to create bloom filter: %v", err)
 	}
 	defer bf.Close()
 
-	bulkheadConfig := bulkhead.BulkheadConfig{
+	bulkheadConfig := patternx.BulkheadConfig{
 		MaxConcurrentCalls: 5,
 		MaxQueueSize:       50,
 		MaxWaitDuration:    1 * time.Second,
 		HealthThreshold:    0.5,
 	}
-	bh, err := bulkhead.NewBulkhead(bulkheadConfig)
+	bh, err := patternx.NewBulkhead(bulkheadConfig)
 	if err != nil {
 		b.Fatalf("Failed to create bulkhead: %v", err)
 	}
 	defer bh.Close()
 
-	cbConfig := cb.DefaultConfig()
-	circuitBreaker, err := cb.New(cbConfig)
+	cbConfig := patternx.DefaultConfigCircuitBreaker()
+	circuitBreaker, err := patternx.NewCircuitBreaker(cbConfig)
 	if err != nil {
 		b.Fatalf("Failed to create circuit breaker: %v", err)
 	}
 
-	dlqConfig := dlq.DefaultConfig()
-	dq, err := dlq.NewDeadLetterQueue(dlqConfig)
+	dlqConfig := patternx.DefaultConfigDLQ()
+	dq, err := patternx.NewDeadLetterQueue(dlqConfig)
 	if err != nil {
 		b.Fatalf("Failed to create DLQ: %v", err)
 	}
 	defer dq.Close()
 
-	poolConfig := pool.DefaultConfig()
+	poolConfig := patternx.DefaultConfigPool()
 	poolConfig.MinWorkers = 3
 	poolConfig.MaxWorkers = 5
 	poolConfig.QueueSize = 50
-	wp, err := pool.New(poolConfig)
+	wp, err := patternx.NewPool(poolConfig)
 	if err != nil {
 		b.Fatalf("Failed to create worker pool: %v", err)
 	}
 	defer wp.Close()
 
-	retryPolicy := retry.DefaultPolicy()
+	retryPolicy := patternx.DefaultPolicy()
 
 	b.ResetTimer()
 	b.Run("FullStack", func(b *testing.B) {
@@ -483,9 +477,9 @@ func BenchmarkIntegration(b *testing.B) {
 				// Use circuit breaker for external service call
 				err := circuitBreaker.Execute(func() error {
 					// Use retry for resilience
-					return retry.Retry(retryPolicy, func() error {
+					return patternx.Retry(retryPolicy, func() error {
 						// Use worker pool for processing
-						job := pool.Job{
+						job := patternx.JobPool{
 							ID:   fmt.Sprintf("integration_job_%d", i),
 							Task: func() (interface{}, error) { return "processed", nil },
 						}
@@ -518,7 +512,7 @@ func BenchmarkIntegration(b *testing.B) {
 
 			if err != nil {
 				// Add to DLQ if operation fails
-				dq.AddFailedOperation(&dlq.FailedOperation{
+				dq.AddFailedOperation(&patternx.FailedOperation{
 					HandlerType: "integration_handler",
 					Data:        fmt.Sprintf("failed_operation_%d", i),
 					Error:       err.Error(),

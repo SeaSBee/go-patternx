@@ -7,8 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SeaSBee/go-patternx/patternx/pool"
-	"github.com/SeaSBee/go-patternx/patternx/retry"
+	"github.com/SeaSBee/go-patternx"
 )
 
 // MockTask simulates a task that can fail and be retried
@@ -56,15 +55,15 @@ func (t *MockTask) GetAttempts() int {
 // TestWorkerPoolWithRetry tests the integration of worker pool and retry patterns
 func TestWorkerPoolWithRetry(t *testing.T) {
 	// Create worker pool
-	wpConfig := pool.DefaultConfig()
-	workerPool, err := pool.New(wpConfig)
+	wpConfig := patternx.DefaultConfigPool()
+	workerPool, err := patternx.NewPool(wpConfig)
 	if err != nil {
 		t.Fatalf("Failed to create worker pool: %v", err)
 	}
 	defer workerPool.Close()
 
 	// Create retry policy
-	retryPolicy := retry.Policy{
+	retryPolicy := patternx.Policy{
 		MaxAttempts:     3,
 		InitialDelay:    10 * time.Millisecond,
 		MaxDelay:        100 * time.Millisecond,
@@ -93,10 +92,10 @@ func TestWorkerPoolWithRetry(t *testing.T) {
 		go func(t *MockTask) {
 			defer wg.Done()
 
-			job := pool.Job{
+			job := patternx.JobPool{
 				ID: fmt.Sprintf("retry-job-%s", t.id),
 				Task: func() (interface{}, error) {
-					return retry.RetryWithResult(retryPolicy, func() (string, error) {
+					return patternx.RetryWithResult(retryPolicy, func() (string, error) {
 						return t.Execute()
 					})
 				},
@@ -187,15 +186,15 @@ func TestWorkerPoolWithRetry(t *testing.T) {
 // TestWorkerPoolRetryWithContext tests context-aware retry with worker pool
 func TestWorkerPoolRetryWithContext(t *testing.T) {
 	// Create worker pool
-	wpConfig := pool.DefaultConfig()
-	workerPool, err := pool.New(wpConfig)
+	wpConfig := patternx.DefaultConfigPool()
+	workerPool, err := patternx.NewPool(wpConfig)
 	if err != nil {
 		t.Fatalf("Failed to create worker pool: %v", err)
 	}
 	defer workerPool.Close()
 
 	// Create retry policy
-	retryPolicy := retry.Policy{
+	retryPolicy := patternx.Policy{
 		MaxAttempts:     5,
 		InitialDelay:    20 * time.Millisecond,
 		MaxDelay:        200 * time.Millisecond,
@@ -227,10 +226,10 @@ func TestWorkerPoolRetryWithContext(t *testing.T) {
 		go func(t *MockTask) {
 			defer wg.Done()
 
-			job := pool.Job{
+			job := patternx.JobPool{
 				ID: fmt.Sprintf("context-retry-job-%s", t.id),
 				Task: func() (interface{}, error) {
-					return retry.RetryWithResultAndContext(ctx, retryPolicy, func() (string, error) {
+					return patternx.RetryWithResultAndContext(ctx, retryPolicy, func() (string, error) {
 						return t.Execute()
 					})
 				},
@@ -302,15 +301,15 @@ func TestWorkerPoolRetryWithContext(t *testing.T) {
 // TestWorkerPoolRetryStress tests stress conditions with retry
 func TestWorkerPoolRetryStress(t *testing.T) {
 	// Create worker pool with limited resources
-	wpConfig := pool.ResourceConstrainedConfig()
-	workerPool, err := pool.New(wpConfig)
+	wpConfig := patternx.ResourceConstrainedConfigPool()
+	workerPool, err := patternx.NewPool(wpConfig)
 	if err != nil {
 		t.Fatalf("Failed to create worker pool: %v", err)
 	}
 	defer workerPool.Close()
 
 	// Create aggressive retry policy
-	retryPolicy := retry.Policy{
+	retryPolicy := patternx.Policy{
 		MaxAttempts:     3,
 		InitialDelay:    5 * time.Millisecond,
 		MaxDelay:        50 * time.Millisecond,
@@ -340,10 +339,10 @@ func TestWorkerPoolRetryStress(t *testing.T) {
 		go func(t *MockTask) {
 			defer wg.Done()
 
-			job := pool.Job{
+			job := patternx.JobPool{
 				ID: fmt.Sprintf("stress-job-%s", t.id),
 				Task: func() (interface{}, error) {
-					return retry.RetryWithResult(retryPolicy, func() (string, error) {
+					return patternx.RetryWithResult(retryPolicy, func() (string, error) {
 						return t.Execute()
 					})
 				},

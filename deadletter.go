@@ -1,4 +1,4 @@
-package dlq
+package patternx
 
 import (
 	"context"
@@ -13,35 +13,28 @@ import (
 
 // Error types for DLQ operations
 var (
-	ErrDLQClosed            = errors.New("dead letter queue is closed")
-	ErrDLQQueueFull         = errors.New("dead letter queue is full")
-	ErrInvalidConfig        = errors.New("invalid DLQ configuration")
-	ErrInvalidOperation     = errors.New("invalid failed operation")
-	ErrContextCancelled     = errors.New("operation cancelled by context")
 	ErrNoHandlerRegistered  = errors.New("no retry handler registered")
 	ErrMaxRetriesExceeded   = errors.New("maximum retries exceeded")
 	ErrHandlerRejectedRetry = errors.New("handler rejected retry")
-	ErrWorkerChannelFull    = errors.New("worker channel full")
-	ErrOperationTimeout     = errors.New("operation timeout")
 )
 
 // Constants for production constraints
 const (
-	MaxRetriesLimit      = 100
-	MinRetriesLimit      = 0
-	MaxRetryDelayLimit   = 24 * time.Hour
-	MinRetryDelayLimit   = 1 * time.Millisecond
-	MaxWorkerCountLimit  = 100
-	MinWorkerCountLimit  = 1
-	MaxQueueSizeLimit    = 100000
-	MinQueueSizeLimit    = 10
-	DefaultMaxRetries    = 3
-	DefaultRetryDelay    = 5 * time.Minute
-	DefaultWorkerCount   = 2
-	DefaultQueueSize     = 1000
-	MaxOperationTimeout  = 60 * time.Second
-	MinOperationTimeout  = 1 * time.Millisecond
-	GracefulShutdownWait = 5 * time.Second
+	MaxRetriesLimitDLQ      = 100
+	MinRetriesLimitDLQ      = 0
+	MaxRetryDelayLimitDLQ   = 24 * time.Hour
+	MinRetryDelayLimitDLQ   = 1 * time.Millisecond
+	MaxWorkerCountLimitDLQ  = 100
+	MinWorkerCountLimitDLQ  = 1
+	MaxQueueSizeLimitDLQ    = 100000
+	MinQueueSizeLimitDLQ    = 10
+	DefaultMaxRetriesDLQ    = 3
+	DefaultRetryDelayDLQ    = 5 * time.Minute
+	DefaultWorkerCountDLQ   = 2
+	DefaultQueueSizeDLQ     = 1000
+	MaxOperationTimeoutDLQ  = 60 * time.Second
+	MinOperationTimeoutDLQ  = 1 * time.Millisecond
+	GracefulShutdownWaitDLQ = 5 * time.Second
 )
 
 // DeadLetterQueue manages failed operations with retry capabilities
@@ -104,7 +97,7 @@ type Metrics struct {
 }
 
 // Config holds dead-letter queue configuration with validation
-type Config struct {
+type ConfigDLQ struct {
 	MaxRetries    int           `json:"max_retries"`
 	RetryDelay    time.Duration `json:"retry_delay"`
 	WorkerCount   int           `json:"worker_count"`
@@ -113,19 +106,19 @@ type Config struct {
 }
 
 // DefaultConfig returns a default DLQ configuration
-func DefaultConfig() *Config {
-	return &Config{
-		MaxRetries:    DefaultMaxRetries,
-		RetryDelay:    DefaultRetryDelay,
-		WorkerCount:   DefaultWorkerCount,
-		QueueSize:     DefaultQueueSize,
+func DefaultConfigDLQ() *ConfigDLQ {
+	return &ConfigDLQ{
+		MaxRetries:    DefaultMaxRetriesDLQ,
+		RetryDelay:    DefaultRetryDelayDLQ,
+		WorkerCount:   DefaultWorkerCountDLQ,
+		QueueSize:     DefaultQueueSizeDLQ,
 		EnableMetrics: true,
 	}
 }
 
 // HighPerformanceConfig returns a high-performance DLQ configuration
-func HighPerformanceConfig() *Config {
-	return &Config{
+func HighPerformanceConfigDLQ() *ConfigDLQ {
+	return &ConfigDLQ{
 		MaxRetries:    10,
 		RetryDelay:    1 * time.Minute,
 		WorkerCount:   10,
@@ -135,8 +128,8 @@ func HighPerformanceConfig() *Config {
 }
 
 // ConservativeConfig returns a conservative DLQ configuration
-func ConservativeConfig() *Config {
-	return &Config{
+func ConservativeConfigDLQ() *ConfigDLQ {
+	return &ConfigDLQ{
 		MaxRetries:    5,
 		RetryDelay:    10 * time.Minute,
 		WorkerCount:   2,
@@ -146,8 +139,8 @@ func ConservativeConfig() *Config {
 }
 
 // EnterpriseConfig returns an enterprise-grade DLQ configuration
-func EnterpriseConfig() *Config {
-	return &Config{
+func EnterpriseConfigDLQ() *ConfigDLQ {
+	return &ConfigDLQ{
 		MaxRetries:    20,
 		RetryDelay:    2 * time.Minute,
 		WorkerCount:   20,
@@ -157,7 +150,7 @@ func EnterpriseConfig() *Config {
 }
 
 // NewDeadLetterQueue creates a new dead-letter queue with comprehensive validation
-func NewDeadLetterQueue(config *Config) (*DeadLetterQueue, error) {
+func NewDeadLetterQueue(config *ConfigDLQ) (*DeadLetterQueue, error) {
 	// Validate configuration
 	if err := validateDLQConfig(config); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidConfig, err)
@@ -337,7 +330,7 @@ func (dlq *DeadLetterQueue) processOperation(operation *FailedOperation) {
 	startTime := time.Now()
 
 	// Create context with timeout for retry operation
-	retryCtx, cancel := context.WithTimeout(dlq.ctx, MaxOperationTimeout)
+	retryCtx, cancel := context.WithTimeout(dlq.ctx, MaxOperationTimeoutDLQ)
 	defer cancel()
 
 	err := handler.Retry(retryCtx, operation)
@@ -540,7 +533,7 @@ func (dlq *DeadLetterQueue) Close() error {
 	select {
 	case <-done:
 		logx.Info("DLQ workers stopped gracefully")
-	case <-time.After(GracefulShutdownWait):
+	case <-time.After(GracefulShutdownWaitDLQ):
 		logx.Warn("DLQ workers did not stop within timeout")
 	}
 
@@ -578,47 +571,47 @@ func (h *WriteBehindHandler) ShouldRetry(operation *FailedOperation) bool {
 }
 
 // validateDLQConfig validates DLQ configuration
-func validateDLQConfig(config *Config) error {
+func validateDLQConfig(config *ConfigDLQ) error {
 	if config == nil {
 		return errors.New("configuration cannot be nil")
 	}
 
-	if config.MaxRetries < MinRetriesLimit || config.MaxRetries > MaxRetriesLimit {
+	if config.MaxRetries < MinRetriesLimitDLQ || config.MaxRetries > MaxRetriesLimitDLQ {
 		return fmt.Errorf("max retries must be between %d and %d, got %d",
-			MinRetriesLimit, MaxRetriesLimit, config.MaxRetries)
+			MinRetriesLimitDLQ, MaxRetriesLimitDLQ, config.MaxRetries)
 	}
 
-	if config.RetryDelay < MinRetryDelayLimit || config.RetryDelay > MaxRetryDelayLimit {
+	if config.RetryDelay < MinRetryDelayLimitDLQ || config.RetryDelay > MaxRetryDelayLimitDLQ {
 		return fmt.Errorf("retry delay must be between %v and %v, got %v",
-			MinRetryDelayLimit, MaxRetryDelayLimit, config.RetryDelay)
+			MinRetryDelayLimitDLQ, MaxRetryDelayLimitDLQ, config.RetryDelay)
 	}
 
-	if config.WorkerCount < MinWorkerCountLimit || config.WorkerCount > MaxWorkerCountLimit {
+	if config.WorkerCount < MinWorkerCountLimitDLQ || config.WorkerCount > MaxWorkerCountLimitDLQ {
 		return fmt.Errorf("worker count must be between %d and %d, got %d",
-			MinWorkerCountLimit, MaxWorkerCountLimit, config.WorkerCount)
+			MinWorkerCountLimitDLQ, MaxWorkerCountLimitDLQ, config.WorkerCount)
 	}
 
-	if config.QueueSize < MinQueueSizeLimit || config.QueueSize > MaxQueueSizeLimit {
+	if config.QueueSize < MinQueueSizeLimitDLQ || config.QueueSize > MaxQueueSizeLimitDLQ {
 		return fmt.Errorf("queue size must be between %d and %d, got %d",
-			MinQueueSizeLimit, MaxQueueSizeLimit, config.QueueSize)
+			MinQueueSizeLimitDLQ, MaxQueueSizeLimitDLQ, config.QueueSize)
 	}
 
 	return nil
 }
 
 // applyDLQDefaults applies default values to configuration
-func applyDLQDefaults(config *Config) {
+func applyDLQDefaults(config *ConfigDLQ) {
 	if config.MaxRetries <= 0 {
-		config.MaxRetries = DefaultMaxRetries
+		config.MaxRetries = DefaultMaxRetriesDLQ
 	}
 	if config.RetryDelay <= 0 {
-		config.RetryDelay = DefaultRetryDelay
+		config.RetryDelay = DefaultRetryDelayDLQ
 	}
 	if config.WorkerCount <= 0 {
-		config.WorkerCount = DefaultWorkerCount
+		config.WorkerCount = DefaultWorkerCountDLQ
 	}
 	if config.QueueSize <= 0 {
-		config.QueueSize = DefaultQueueSize
+		config.QueueSize = DefaultQueueSizeDLQ
 	}
 }
 

@@ -1,4 +1,4 @@
-package retry
+package patternx
 
 import (
 	"context"
@@ -6,39 +6,26 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
-	"sync"
 	"sync/atomic"
 	"time"
 )
 
 // Production constants
 const (
-	MaxAttemptsLimit         = 100
-	MinAttemptsLimit         = 1
-	MaxInitialDelayLimit     = 1 * time.Hour
-	MinInitialDelayLimit     = 1 * time.Millisecond
-	MaxDelayLimit            = 24 * time.Hour
-	MinDelayLimit            = 1 * time.Millisecond
-	MaxMultiplierLimit       = 10.0
-	MinMultiplierLimit       = 0.1
-	MaxJitterPercentLimit    = 50.0
-	MinJitterPercentLimit    = 0.0
-	MaxRetryableErrorsLimit  = 100
-	DefaultJitterPercent     = 10.0
-	MaxRetryBudget           = 10000
-	RetryBudgetResetInterval = 1 * time.Hour
-)
-
-// Error types for production scenarios
-var (
-	ErrInvalidPolicy       = errors.New("invalid retry policy configuration")
-	ErrMaxAttemptsExceeded = errors.New("maximum retry attempts exceeded")
-	ErrContextCancelled    = errors.New("retry operation cancelled by context")
-	ErrRetryBudgetExceeded = errors.New("retry budget exceeded")
-	ErrOperationTimeout    = errors.New("operation timeout")
-	ErrInvalidOperation    = errors.New("invalid operation function")
-	ErrRateLimitExceeded   = errors.New("rate limit exceeded")
-	ErrCircuitBreakerOpen  = errors.New("circuit breaker is open")
+	MaxAttemptsLimitRetry         = 100
+	MinAttemptsLimitRetry         = 1
+	MaxInitialDelayLimitRetry     = 1 * time.Hour
+	MinInitialDelayLimitRetry     = 1 * time.Millisecond
+	MaxDelayLimitRetry            = 24 * time.Hour
+	MinDelayLimitRetry            = 1 * time.Millisecond
+	MaxMultiplierLimitRetry       = 10.0
+	MinMultiplierLimitRetry       = 0.1
+	MaxJitterPercentLimitRetry    = 50.0
+	MinJitterPercentLimitRetry    = 0.0
+	MaxRetryableErrorsLimitRetry  = 100
+	DefaultJitterPercentRetry     = 10.0
+	MaxRetryBudgetRetry           = 10000
+	RetryBudgetResetIntervalRetry = 1 * time.Hour
 )
 
 // Policy defines retry behavior with comprehensive validation
@@ -72,20 +59,8 @@ type RetryStats struct {
 // RetryManager manages global retry state and budgets
 type RetryManager struct {
 	stats           *RetryStats
-	retryBudget     atomic.Int64
 	lastBudgetReset atomic.Value // time.Time
-	rateLimiters    map[string]*rateLimiter
-	mu              sync.RWMutex
 	closed          int32
-}
-
-// rateLimiter implements token bucket rate limiting
-type rateLimiter struct {
-	tokens     atomic.Int64
-	lastRefill atomic.Value // time.Time
-	capacity   int64
-	rate       float64
-	window     time.Duration
 }
 
 // DefaultPolicy returns a sensible default retry policy
@@ -96,7 +71,7 @@ func DefaultPolicy() Policy {
 		MaxDelay:        5 * time.Second,
 		Multiplier:      2.0,
 		Jitter:          true,
-		JitterPercent:   DefaultJitterPercent,
+		JitterPercent:   DefaultJitterPercentRetry,
 		Timeout:         30 * time.Second,
 		RateLimit:       100,
 		RateLimitWindow: time.Second,
@@ -111,7 +86,7 @@ func AggressivePolicy() Policy {
 		MaxDelay:        10 * time.Second,
 		Multiplier:      1.5,
 		Jitter:          true,
-		JitterPercent:   DefaultJitterPercent,
+		JitterPercent:   DefaultJitterPercentRetry,
 		Timeout:         60 * time.Second,
 		RateLimit:       200,
 		RateLimitWindow: time.Second,
@@ -126,7 +101,7 @@ func ConservativePolicy() Policy {
 		MaxDelay:        2 * time.Second,
 		Multiplier:      2.0,
 		Jitter:          true,
-		JitterPercent:   DefaultJitterPercent,
+		JitterPercent:   DefaultJitterPercentRetry,
 		Timeout:         15 * time.Second,
 		RateLimit:       50,
 		RateLimitWindow: time.Second,
@@ -151,8 +126,7 @@ func EnterprisePolicy() Policy {
 // NewRetryManager creates a new retry manager
 func NewRetryManager() *RetryManager {
 	rm := &RetryManager{
-		stats:        &RetryStats{},
-		rateLimiters: make(map[string]*rateLimiter),
+		stats: &RetryStats{},
 	}
 	rm.lastBudgetReset.Store(time.Now())
 	return rm
@@ -160,49 +134,49 @@ func NewRetryManager() *RetryManager {
 
 // validatePolicy validates retry policy configuration
 func validatePolicy(policy Policy) error {
-	if policy.MaxAttempts < MinAttemptsLimit || policy.MaxAttempts > MaxAttemptsLimit {
+	if policy.MaxAttempts < MinAttemptsLimitRetry || policy.MaxAttempts > MaxAttemptsLimitRetry {
 		return fmt.Errorf("%w: max attempts must be between %d and %d, got %d",
-			ErrInvalidPolicy, MinAttemptsLimit, MaxAttemptsLimit, policy.MaxAttempts)
+			ErrRetryInvalidPolicy, MinAttemptsLimitRetry, MaxAttemptsLimitRetry, policy.MaxAttempts)
 	}
 
-	if policy.InitialDelay < MinInitialDelayLimit || policy.InitialDelay > MaxInitialDelayLimit {
+	if policy.InitialDelay < MinInitialDelayLimitRetry || policy.InitialDelay > MaxInitialDelayLimitRetry {
 		return fmt.Errorf("%w: initial delay must be between %v and %v, got %v",
-			ErrInvalidPolicy, MinInitialDelayLimit, MaxInitialDelayLimit, policy.InitialDelay)
+			ErrRetryInvalidPolicy, MinInitialDelayLimitRetry, MaxInitialDelayLimitRetry, policy.InitialDelay)
 	}
 
-	if policy.MaxDelay < MinDelayLimit || policy.MaxDelay > MaxDelayLimit {
+	if policy.MaxDelay < MinDelayLimitRetry || policy.MaxDelay > MaxDelayLimitRetry {
 		return fmt.Errorf("%w: max delay must be between %v and %v, got %v",
-			ErrInvalidPolicy, MinDelayLimit, MaxDelayLimit, policy.MaxDelay)
+			ErrRetryInvalidPolicy, MinDelayLimitRetry, MaxDelayLimitRetry, policy.MaxDelay)
 	}
 
 	if policy.InitialDelay > policy.MaxDelay {
 		return fmt.Errorf("%w: initial delay (%v) cannot exceed max delay (%v)",
-			ErrInvalidPolicy, policy.InitialDelay, policy.MaxDelay)
+			ErrRetryInvalidPolicy, policy.InitialDelay, policy.MaxDelay)
 	}
 
-	if policy.Multiplier < MinMultiplierLimit || policy.Multiplier > MaxMultiplierLimit {
+	if policy.Multiplier < MinMultiplierLimitRetry || policy.Multiplier > MaxMultiplierLimitRetry {
 		return fmt.Errorf("%w: multiplier must be between %f and %f, got %f",
-			ErrInvalidPolicy, MinMultiplierLimit, MaxMultiplierLimit, policy.Multiplier)
+			ErrRetryInvalidPolicy, MinMultiplierLimitRetry, MaxMultiplierLimitRetry, policy.Multiplier)
 	}
 
-	if policy.JitterPercent < MinJitterPercentLimit || policy.JitterPercent > MaxJitterPercentLimit {
+	if policy.JitterPercent < MinJitterPercentLimitRetry || policy.JitterPercent > MaxJitterPercentLimitRetry {
 		return fmt.Errorf("%w: jitter percent must be between %f and %f, got %f",
-			ErrInvalidPolicy, MinJitterPercentLimit, MaxJitterPercentLimit, policy.JitterPercent)
+			ErrRetryInvalidPolicy, MinJitterPercentLimitRetry, MaxJitterPercentLimitRetry, policy.JitterPercent)
 	}
 
-	if len(policy.RetryableErrors) > MaxRetryableErrorsLimit {
+	if len(policy.RetryableErrors) > MaxRetryableErrorsLimitRetry {
 		return fmt.Errorf("%w: retryable errors list cannot exceed %d items, got %d",
-			ErrInvalidPolicy, MaxRetryableErrorsLimit, len(policy.RetryableErrors))
+			ErrRetryInvalidPolicy, MaxRetryableErrorsLimitRetry, len(policy.RetryableErrors))
 	}
 
 	if policy.RateLimit < 0 {
 		return fmt.Errorf("%w: rate limit cannot be negative, got %d",
-			ErrInvalidPolicy, policy.RateLimit)
+			ErrRetryInvalidPolicy, policy.RateLimit)
 	}
 
 	if policy.RateLimitWindow <= 0 {
 		return fmt.Errorf("%w: rate limit window must be positive, got %v",
-			ErrInvalidPolicy, policy.RateLimitWindow)
+			ErrRetryInvalidPolicy, policy.RateLimitWindow)
 	}
 
 	return nil
@@ -277,7 +251,7 @@ func RetryWithContext(ctx context.Context, policy Policy, operation func() error
 	}
 
 	return fmt.Errorf("%w: operation failed after %d attempts: %w",
-		ErrMaxAttemptsExceeded, policy.MaxAttempts, lastErr)
+		ErrRetryMaxAttemptsExceeded, policy.MaxAttempts, lastErr)
 }
 
 // RetryWithResult executes an operation that returns a result with retry logic
@@ -351,7 +325,7 @@ func RetryWithResultAndContext[T any](ctx context.Context, policy Policy, operat
 	}
 
 	return zero, fmt.Errorf("%w: operation failed after %d attempts: %w",
-		ErrMaxAttemptsExceeded, policy.MaxAttempts, lastErr)
+		ErrRetryMaxAttemptsExceeded, policy.MaxAttempts, lastErr)
 }
 
 // calculateDelay calculates the delay for the given attempt using exponential backoff
@@ -506,7 +480,7 @@ func RetryWithStatsAndContext(ctx context.Context, policy Policy, operation func
 	}
 
 	return stats, fmt.Errorf("%w: operation failed after %d attempts: %w",
-		ErrMaxAttemptsExceeded, policy.MaxAttempts, lastErr)
+		ErrRetryMaxAttemptsExceeded, policy.MaxAttempts, lastErr)
 }
 
 // GetStats returns the current retry statistics
@@ -533,12 +507,6 @@ func (rm *RetryManager) Close() error {
 	if !atomic.CompareAndSwapInt32(&rm.closed, 0, 1) {
 		return fmt.Errorf("retry manager already closed")
 	}
-
-	rm.mu.Lock()
-	defer rm.mu.Unlock()
-
-	// Clear rate limiters
-	rm.rateLimiters = make(map[string]*rateLimiter)
 
 	return nil
 }

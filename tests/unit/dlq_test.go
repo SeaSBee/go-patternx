@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SeaSBee/go-patternx/patternx/dlq"
+	"github.com/SeaSBee/go-patternx"
 )
 
 // MockRetryHandler implements RetryHandler interface for testing
@@ -28,7 +28,7 @@ func NewMockRetryHandler(shouldRetry, shouldFail bool, delay time.Duration) *Moc
 	}
 }
 
-func (h *MockRetryHandler) Retry(ctx context.Context, operation *dlq.FailedOperation) error {
+func (h *MockRetryHandler) Retry(ctx context.Context, operation *patternx.FailedOperation) error {
 	h.mu.Lock()
 	h.retryCount++
 	h.mu.Unlock()
@@ -41,7 +41,7 @@ func (h *MockRetryHandler) Retry(ctx context.Context, operation *dlq.FailedOpera
 	return nil
 }
 
-func (h *MockRetryHandler) ShouldRetry(operation *dlq.FailedOperation) bool {
+func (h *MockRetryHandler) ShouldRetry(operation *patternx.FailedOperation) bool {
 	return h.shouldRetry && operation.RetryCount < operation.MaxRetries
 }
 
@@ -52,7 +52,7 @@ func (h *MockRetryHandler) GetRetryCount() int {
 }
 
 func TestNewDeadLetterQueue(t *testing.T) {
-	config := &dlq.Config{
+	config := &patternx.ConfigDLQ{
 		MaxRetries:    3,
 		RetryDelay:    100 * time.Millisecond,
 		WorkerCount:   2,
@@ -60,7 +60,7 @@ func TestNewDeadLetterQueue(t *testing.T) {
 		EnableMetrics: true,
 	}
 
-	dq, err := dlq.NewDeadLetterQueue(config)
+	dq, err := patternx.NewDeadLetterQueue(config)
 	if err != nil {
 		t.Fatalf("Expected no error creating DLQ, got %v", err)
 	}
@@ -70,7 +70,7 @@ func TestNewDeadLetterQueue(t *testing.T) {
 }
 
 func TestNewDeadLetterQueueNilConfig(t *testing.T) {
-	dq, err := dlq.NewDeadLetterQueue(nil)
+	dq, err := patternx.NewDeadLetterQueue(nil)
 	if err == nil {
 		t.Fatal("Expected error when creating DLQ with nil config")
 	}
@@ -80,7 +80,7 @@ func TestNewDeadLetterQueueNilConfig(t *testing.T) {
 }
 
 func TestDeadLetterQueueAddFailedOperation(t *testing.T) {
-	config := &dlq.Config{
+	config := &patternx.ConfigDLQ{
 		MaxRetries:    3,
 		RetryDelay:    50 * time.Millisecond,
 		WorkerCount:   1,
@@ -88,12 +88,12 @@ func TestDeadLetterQueueAddFailedOperation(t *testing.T) {
 		EnableMetrics: true,
 	}
 
-	dq, err := dlq.NewDeadLetterQueue(config)
+	dq, err := patternx.NewDeadLetterQueue(config)
 	if err != nil {
 		t.Fatalf("Expected no error creating DLQ, got %v", err)
 	}
 
-	failedOp := &dlq.FailedOperation{
+	failedOp := &patternx.FailedOperation{
 		ID:          "test-operation-1",
 		Operation:   "test_operation",
 		Key:         "test-key",
@@ -120,7 +120,7 @@ func TestDeadLetterQueueAddFailedOperation(t *testing.T) {
 }
 
 func TestDeadLetterQueueAddFailedOperationWithHandler(t *testing.T) {
-	config := &dlq.Config{
+	config := &patternx.ConfigDLQ{
 		MaxRetries:    3,
 		RetryDelay:    50 * time.Millisecond,
 		WorkerCount:   1,
@@ -128,7 +128,7 @@ func TestDeadLetterQueueAddFailedOperationWithHandler(t *testing.T) {
 		EnableMetrics: true,
 	}
 
-	dq, err := dlq.NewDeadLetterQueue(config)
+	dq, err := patternx.NewDeadLetterQueue(config)
 	if err != nil {
 		t.Fatalf("Expected no error creating DLQ, got %v", err)
 	}
@@ -137,7 +137,7 @@ func TestDeadLetterQueueAddFailedOperationWithHandler(t *testing.T) {
 	handler := NewMockRetryHandler(true, false, 10*time.Millisecond)
 	dq.RegisterHandler("test_operation", handler)
 
-	failedOp := &dlq.FailedOperation{
+	failedOp := &patternx.FailedOperation{
 		ID:          "test-operation-2",
 		Operation:   "test_operation",
 		Key:         "test-key",
@@ -168,7 +168,7 @@ func TestDeadLetterQueueAddFailedOperationWithHandler(t *testing.T) {
 }
 
 func TestDeadLetterQueueRetryWithSuccess(t *testing.T) {
-	config := &dlq.Config{
+	config := &patternx.ConfigDLQ{
 		MaxRetries:    3,
 		RetryDelay:    50 * time.Millisecond,
 		WorkerCount:   1,
@@ -176,7 +176,7 @@ func TestDeadLetterQueueRetryWithSuccess(t *testing.T) {
 		EnableMetrics: true,
 	}
 
-	dq, err := dlq.NewDeadLetterQueue(config)
+	dq, err := patternx.NewDeadLetterQueue(config)
 	if err != nil {
 		t.Fatalf("Expected no error creating DLQ, got %v", err)
 	}
@@ -185,7 +185,7 @@ func TestDeadLetterQueueRetryWithSuccess(t *testing.T) {
 	handler := NewMockRetryHandler(true, false, 10*time.Millisecond)
 	dq.RegisterHandler("success_operation", handler)
 
-	failedOp := &dlq.FailedOperation{
+	failedOp := &patternx.FailedOperation{
 		ID:          "test-operation-3",
 		Operation:   "success_operation",
 		Key:         "test-key",
@@ -212,7 +212,7 @@ func TestDeadLetterQueueRetryWithSuccess(t *testing.T) {
 }
 
 func TestDeadLetterQueueRetryWithFailure(t *testing.T) {
-	config := &dlq.Config{
+	config := &patternx.ConfigDLQ{
 		MaxRetries:    2,
 		RetryDelay:    50 * time.Millisecond,
 		WorkerCount:   1,
@@ -220,7 +220,7 @@ func TestDeadLetterQueueRetryWithFailure(t *testing.T) {
 		EnableMetrics: true,
 	}
 
-	dq, err := dlq.NewDeadLetterQueue(config)
+	dq, err := patternx.NewDeadLetterQueue(config)
 	if err != nil {
 		t.Fatalf("Expected no error creating DLQ, got %v", err)
 	}
@@ -229,7 +229,7 @@ func TestDeadLetterQueueRetryWithFailure(t *testing.T) {
 	handler := NewMockRetryHandler(true, true, 10*time.Millisecond)
 	dq.RegisterHandler("failure_operation", handler)
 
-	failedOp := &dlq.FailedOperation{
+	failedOp := &patternx.FailedOperation{
 		ID:          "test-operation-4",
 		Operation:   "failure_operation",
 		Key:         "test-key",
@@ -256,7 +256,7 @@ func TestDeadLetterQueueRetryWithFailure(t *testing.T) {
 }
 
 func TestDeadLetterQueueNoRetryHandler(t *testing.T) {
-	config := &dlq.Config{
+	config := &patternx.ConfigDLQ{
 		MaxRetries:    3,
 		RetryDelay:    50 * time.Millisecond,
 		WorkerCount:   1,
@@ -264,12 +264,12 @@ func TestDeadLetterQueueNoRetryHandler(t *testing.T) {
 		EnableMetrics: true,
 	}
 
-	dq, err := dlq.NewDeadLetterQueue(config)
+	dq, err := patternx.NewDeadLetterQueue(config)
 	if err != nil {
 		t.Fatalf("Expected no error creating DLQ, got %v", err)
 	}
 
-	failedOp := &dlq.FailedOperation{
+	failedOp := &patternx.FailedOperation{
 		ID:          "test-operation-5",
 		Operation:   "unknown_operation",
 		Key:         "test-key",
@@ -296,7 +296,7 @@ func TestDeadLetterQueueNoRetryHandler(t *testing.T) {
 }
 
 func TestDeadLetterQueueMaxRetriesExceeded(t *testing.T) {
-	config := &dlq.Config{
+	config := &patternx.ConfigDLQ{
 		MaxRetries:    1,
 		RetryDelay:    50 * time.Millisecond,
 		WorkerCount:   1,
@@ -304,7 +304,7 @@ func TestDeadLetterQueueMaxRetriesExceeded(t *testing.T) {
 		EnableMetrics: true,
 	}
 
-	dq, err := dlq.NewDeadLetterQueue(config)
+	dq, err := patternx.NewDeadLetterQueue(config)
 	if err != nil {
 		t.Fatalf("Expected no error creating DLQ, got %v", err)
 	}
@@ -313,7 +313,7 @@ func TestDeadLetterQueueMaxRetriesExceeded(t *testing.T) {
 	handler := NewMockRetryHandler(true, true, 10*time.Millisecond)
 	dq.RegisterHandler("max_retries_operation", handler)
 
-	failedOp := &dlq.FailedOperation{
+	failedOp := &patternx.FailedOperation{
 		ID:          "test-operation-6",
 		Operation:   "max_retries_operation",
 		Key:         "test-key",
@@ -340,7 +340,7 @@ func TestDeadLetterQueueMaxRetriesExceeded(t *testing.T) {
 }
 
 func TestDeadLetterQueueConcurrentAccess(t *testing.T) {
-	config := &dlq.Config{
+	config := &patternx.ConfigDLQ{
 		MaxRetries:    3,
 		RetryDelay:    10 * time.Millisecond,
 		WorkerCount:   3,
@@ -348,7 +348,7 @@ func TestDeadLetterQueueConcurrentAccess(t *testing.T) {
 		EnableMetrics: true,
 	}
 
-	dq, err := dlq.NewDeadLetterQueue(config)
+	dq, err := patternx.NewDeadLetterQueue(config)
 	if err != nil {
 		t.Fatalf("Expected no error creating DLQ, got %v", err)
 	}
@@ -365,7 +365,7 @@ func TestDeadLetterQueueConcurrentAccess(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 
-			failedOp := &dlq.FailedOperation{
+			failedOp := &patternx.FailedOperation{
 				ID:          fmt.Sprintf("test-operation-%d", id),
 				Operation:   "concurrent_operation",
 				Key:         fmt.Sprintf("test-key-%d", id),
@@ -396,7 +396,7 @@ func TestDeadLetterQueueConcurrentAccess(t *testing.T) {
 }
 
 func TestDeadLetterQueueGetQueue(t *testing.T) {
-	config := &dlq.Config{
+	config := &patternx.ConfigDLQ{
 		MaxRetries:    3,
 		RetryDelay:    50 * time.Millisecond,
 		WorkerCount:   1,
@@ -404,14 +404,14 @@ func TestDeadLetterQueueGetQueue(t *testing.T) {
 		EnableMetrics: true,
 	}
 
-	dq, err := dlq.NewDeadLetterQueue(config)
+	dq, err := patternx.NewDeadLetterQueue(config)
 	if err != nil {
 		t.Fatalf("Expected no error creating DLQ, got %v", err)
 	}
 
 	// Add multiple operations
 	for i := 0; i < 5; i++ {
-		failedOp := &dlq.FailedOperation{
+		failedOp := &patternx.FailedOperation{
 			ID:          fmt.Sprintf("test-operation-%d", i),
 			Operation:   "test_operation",
 			Key:         fmt.Sprintf("test-key-%d", i),
@@ -442,7 +442,7 @@ func TestDeadLetterQueueGetQueue(t *testing.T) {
 }
 
 func TestDeadLetterQueueClearQueue(t *testing.T) {
-	config := &dlq.Config{
+	config := &patternx.ConfigDLQ{
 		MaxRetries:    3,
 		RetryDelay:    50 * time.Millisecond,
 		WorkerCount:   1,
@@ -450,13 +450,13 @@ func TestDeadLetterQueueClearQueue(t *testing.T) {
 		EnableMetrics: true,
 	}
 
-	dq, err := dlq.NewDeadLetterQueue(config)
+	dq, err := patternx.NewDeadLetterQueue(config)
 	if err != nil {
 		t.Fatalf("Expected no error creating DLQ, got %v", err)
 	}
 
 	// Add an operation
-	failedOp := &dlq.FailedOperation{
+	failedOp := &patternx.FailedOperation{
 		ID:          "test-operation-9",
 		Operation:   "test_operation",
 		Key:         "test-key",
@@ -492,7 +492,7 @@ func TestDeadLetterQueueClearQueue(t *testing.T) {
 }
 
 func TestDeadLetterQueueMetrics(t *testing.T) {
-	config := &dlq.Config{
+	config := &patternx.ConfigDLQ{
 		MaxRetries:    2,
 		RetryDelay:    50 * time.Millisecond,
 		WorkerCount:   1,
@@ -500,7 +500,7 @@ func TestDeadLetterQueueMetrics(t *testing.T) {
 		EnableMetrics: true,
 	}
 
-	dq, err := dlq.NewDeadLetterQueue(config)
+	dq, err := patternx.NewDeadLetterQueue(config)
 	if err != nil {
 		t.Fatalf("Expected no error creating DLQ, got %v", err)
 	}
@@ -509,7 +509,7 @@ func TestDeadLetterQueueMetrics(t *testing.T) {
 	handler := NewMockRetryHandler(true, false, 10*time.Millisecond)
 	dq.RegisterHandler("metrics_operation", handler)
 
-	failedOp := &dlq.FailedOperation{
+	failedOp := &patternx.FailedOperation{
 		ID:          "test-operation-10",
 		Operation:   "metrics_operation",
 		Key:         "test-key",
@@ -545,7 +545,7 @@ func TestDeadLetterQueueMetrics(t *testing.T) {
 }
 
 func TestDeadLetterQueueClose(t *testing.T) {
-	config := &dlq.Config{
+	config := &patternx.ConfigDLQ{
 		MaxRetries:    3,
 		RetryDelay:    50 * time.Millisecond,
 		WorkerCount:   1,
@@ -553,13 +553,13 @@ func TestDeadLetterQueueClose(t *testing.T) {
 		EnableMetrics: true,
 	}
 
-	dq, err := dlq.NewDeadLetterQueue(config)
+	dq, err := patternx.NewDeadLetterQueue(config)
 	if err != nil {
 		t.Fatalf("Expected no error creating DLQ, got %v", err)
 	}
 
 	// Add an operation
-	failedOp := &dlq.FailedOperation{
+	failedOp := &patternx.FailedOperation{
 		ID:          "test-operation-11",
 		Operation:   "test_operation",
 		Key:         "test-key",
@@ -595,9 +595,9 @@ func TestWriteBehindHandler(t *testing.T) {
 		return nil
 	}
 
-	handler := dlq.NewWriteBehindHandler(writer)
+	handler := patternx.NewWriteBehindHandler(writer)
 
-	operation := &dlq.FailedOperation{
+	operation := &patternx.FailedOperation{
 		ID:         "test-write-behind",
 		Operation:  "write_behind",
 		Key:        "test-key",

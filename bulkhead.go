@@ -1,4 +1,4 @@
-package bulkhead
+package patternx
 
 import (
 	"context"
@@ -11,27 +11,21 @@ import (
 
 // Error types for bulkhead operations
 var (
-	ErrBulkheadTimeout       = errors.New("bulkhead operation timeout")
-	ErrBulkheadQueueFull     = errors.New("bulkhead queue is full")
-	ErrBulkheadClosed        = errors.New("bulkhead is closed")
-	ErrBulkheadUnhealthy     = errors.New("bulkhead is unhealthy")
-	ErrInvalidConfig         = errors.New("invalid bulkhead configuration")
-	ErrInvalidFunction       = errors.New("invalid function provided")
-	ErrContextCancelled      = errors.New("operation cancelled by context")
-	ErrMaxConcurrentExceeded = errors.New("maximum concurrent calls exceeded")
+// Bulkhead specific errors are now defined in errors.go
+// Bulkhead specific errors are now defined in errors.go
 )
 
 // Constants for production constraints
 const (
-	MaxConcurrentCallsLimit = 10000
-	MaxQueueSizeLimit       = 100000
-	MaxWaitDurationLimit    = 60 * time.Second
-	MinWaitDuration         = 1 * time.Millisecond
-	MinConcurrentCalls      = 1
-	MinQueueSize            = 1
-	DefaultHealthThreshold  = 0.5
-	MaxHealthThreshold      = 1.0
-	MinHealthThreshold      = 0.1
+	MaxConcurrentCallsLimitBulkhead = 10000
+	MaxQueueSizeLimitBulkhead       = 100000
+	MaxWaitDurationLimitBulkhead    = 60 * time.Second
+	MinWaitDurationBulkhead         = 1 * time.Millisecond
+	MinConcurrentCallsBulkhead      = 1
+	MinQueueSizeBulkhead            = 1
+	DefaultHealthThresholdBulkhead  = 0.5
+	MaxHealthThresholdBulkhead      = 1.0
+	MinHealthThresholdBulkhead      = 0.1
 )
 
 // BulkheadConfig defines the configuration for a bulkhead pattern with validation
@@ -54,7 +48,7 @@ func DefaultBulkheadConfig() BulkheadConfig {
 		MaxConcurrentCalls: 10,
 		MaxWaitDuration:    5 * time.Second,
 		MaxQueueSize:       100,
-		HealthThreshold:    DefaultHealthThreshold,
+		HealthThreshold:    DefaultHealthThresholdBulkhead,
 		EnableMetrics:      true,
 	}
 }
@@ -65,7 +59,7 @@ func HighPerformanceBulkheadConfig() BulkheadConfig {
 		MaxConcurrentCalls: 50,
 		MaxWaitDuration:    10 * time.Second,
 		MaxQueueSize:       500,
-		HealthThreshold:    DefaultHealthThreshold,
+		HealthThreshold:    DefaultHealthThresholdBulkhead,
 		EnableMetrics:      true,
 	}
 }
@@ -76,7 +70,7 @@ func ResourceConstrainedBulkheadConfig() BulkheadConfig {
 		MaxConcurrentCalls: 5,
 		MaxWaitDuration:    2 * time.Second,
 		MaxQueueSize:       50,
-		HealthThreshold:    DefaultHealthThreshold,
+		HealthThreshold:    DefaultHealthThresholdBulkhead,
 		EnableMetrics:      true,
 	}
 }
@@ -99,7 +93,6 @@ type Bulkhead struct {
 	queue     chan struct{}
 	closed    int32 // Atomic flag for closed state
 	metrics   *BulkheadMetrics
-	mu        sync.RWMutex // For configuration and health checks
 }
 
 // BulkheadMetrics tracks bulkhead performance metrics with atomic operations
@@ -151,7 +144,7 @@ func (b *Bulkhead) Execute(ctx context.Context, fn func() (interface{}, error)) 
 	}
 
 	// Validate inputs
-	if err := validateExecuteInputs(ctx, fn); err != nil {
+	if err := validateExecuteInputsBulkhead(ctx, fn); err != nil {
 		return nil, fmt.Errorf("invalid execute inputs: %w", err)
 	}
 
@@ -181,7 +174,7 @@ func (b *Bulkhead) ExecuteAsync(ctx context.Context, fn func() (interface{}, err
 	resultChan := make(chan Result, 1)
 
 	// Validate inputs
-	if err := validateExecuteInputs(ctx, fn); err != nil {
+	if err := validateExecuteInputsBulkhead(ctx, fn); err != nil {
 		resultChan <- Result{Result: nil, Error: fmt.Errorf("invalid async execute inputs: %w", err)}
 		close(resultChan)
 		return resultChan
@@ -203,8 +196,8 @@ type Result struct {
 }
 
 // GetMetrics returns the current bulkhead metrics with thread safety
-func (b *Bulkhead) GetMetrics() BulkheadMetrics {
-	metrics := BulkheadMetrics{
+func (b *Bulkhead) GetMetrics() *BulkheadMetrics {
+	metrics := &BulkheadMetrics{
 		TotalCalls:             atomic.Int64{},
 		SuccessfulCalls:        atomic.Int64{},
 		FailedCalls:            atomic.Int64{},
@@ -312,16 +305,19 @@ func (b *Bulkhead) Close() error {
 		select {
 		case <-timeout:
 			// Force close after timeout
-			break
+			goto closeChannels
 		case <-ticker.C:
 			if b.metrics.CurrentConcurrentCalls.Load() == 0 {
 				// All operations completed, safe to close channels
-				close(b.semaphore)
-				close(b.queue)
-				return nil
+				goto closeChannels
 			}
 		}
 	}
+
+closeChannels:
+	close(b.semaphore)
+	close(b.queue)
+	return nil
 }
 
 // IsClosed returns true if the bulkhead is closed
@@ -389,7 +385,7 @@ func (b *Bulkhead) releaseSemaphore() {
 }
 
 // executeWithTimeout executes the function with timeout protection
-func (b *Bulkhead) executeWithTimeout(ctx context.Context, fn func() (interface{}, error)) (interface{}, error) {
+func (b *Bulkhead) executeWithTimeout(_ context.Context, fn func() (interface{}, error)) (interface{}, error) {
 	start := time.Now()
 
 	// Execute function
@@ -440,24 +436,24 @@ func (b *Bulkhead) updateHealthStatus() {
 
 // validateBulkheadConfig validates bulkhead configuration
 func validateBulkheadConfig(config BulkheadConfig) error {
-	if config.MaxConcurrentCalls < MinConcurrentCalls || config.MaxConcurrentCalls > MaxConcurrentCallsLimit {
+	if config.MaxConcurrentCalls < MinConcurrentCallsBulkhead || config.MaxConcurrentCalls > MaxConcurrentCallsLimitBulkhead {
 		return fmt.Errorf("max concurrent calls must be between %d and %d, got %d",
-			MinConcurrentCalls, MaxConcurrentCallsLimit, config.MaxConcurrentCalls)
+			MinConcurrentCallsBulkhead, MaxConcurrentCallsLimitBulkhead, config.MaxConcurrentCalls)
 	}
 
-	if config.MaxQueueSize < MinQueueSize || config.MaxQueueSize > MaxQueueSizeLimit {
+	if config.MaxQueueSize < MinQueueSizeBulkhead || config.MaxQueueSize > MaxQueueSizeLimitBulkhead {
 		return fmt.Errorf("max queue size must be between %d and %d, got %d",
-			MinQueueSize, MaxQueueSizeLimit, config.MaxQueueSize)
+			MinQueueSizeBulkhead, MaxQueueSizeLimitBulkhead, config.MaxQueueSize)
 	}
 
-	if config.MaxWaitDuration < MinWaitDuration || config.MaxWaitDuration > MaxWaitDurationLimit {
+	if config.MaxWaitDuration < MinWaitDurationBulkhead || config.MaxWaitDuration > MaxWaitDurationLimitBulkhead {
 		return fmt.Errorf("max wait duration must be between %v and %v, got %v",
-			MinWaitDuration, MaxWaitDurationLimit, config.MaxWaitDuration)
+			MinWaitDurationBulkhead, MaxWaitDurationLimitBulkhead, config.MaxWaitDuration)
 	}
 
-	if config.HealthThreshold < MinHealthThreshold || config.HealthThreshold > MaxHealthThreshold {
+	if config.HealthThreshold < MinHealthThresholdBulkhead || config.HealthThreshold > MaxHealthThresholdBulkhead {
 		return fmt.Errorf("health threshold must be between %f and %f, got %f",
-			MinHealthThreshold, MaxHealthThreshold, config.HealthThreshold)
+			MinHealthThresholdBulkhead, MaxHealthThresholdBulkhead, config.HealthThreshold)
 	}
 
 	return nil
@@ -475,17 +471,17 @@ func applyBulkheadDefaults(config *BulkheadConfig) {
 		config.MaxQueueSize = 100
 	}
 	if config.HealthThreshold <= 0 {
-		config.HealthThreshold = DefaultHealthThreshold
+		config.HealthThreshold = DefaultHealthThresholdBulkhead
 	}
 }
 
 // validateExecuteInputs validates inputs for Execute methods
-func validateExecuteInputs(ctx context.Context, fn func() (interface{}, error)) error {
+func validateExecuteInputsBulkhead(ctx context.Context, fn func() (interface{}, error)) error {
 	if ctx == nil {
 		return errors.New("context cannot be nil")
 	}
 	if fn == nil {
-		return ErrInvalidFunction
+		return ErrInvalidOperation
 	}
 	return nil
 }
