@@ -641,7 +641,7 @@ config := &patternx.ConfigPubSub{
 
 ## 📊 Performance
 
-### Benchmark Results (Latest Run - December 2024)
+### Benchmark Results (Latest Run - August 2025)
 
 ```
 Bloom Filter:
